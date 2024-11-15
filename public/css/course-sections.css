@@ -1,0 +1,11 @@
+.content-type-btn {
+    @apply transition-all duration-200;
+}
+
+.content-type-btn.active {
+    @apply border-orange-500 bg-orange-50;
+}
+
+.content-type-btn:hover:not(.active) {
+    @apply border-orange-300;
+}
