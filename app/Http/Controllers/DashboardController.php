@@ -3,28 +3,29 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use App\Models\Course;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        $enrolledCourses = DB::table('courses')
-            ->join('course_user', 'courses.id', '=', 'course_user.course_id')
-            ->where('course_user.user_id', Auth::id())
+        $user = Auth::user();
+        
+        // Get enrolled courses with sections count
+        $enrolledCourses = Course::join('course_user', 'courses.id', '=', 'course_user.course_id')
+            ->where('course_user.user_id', $user->id)
             ->select([
-                'courses.id',
-                'courses.title',
-                'courses.description',
-                'courses.image',
+                'courses.*',
                 'course_user.completed',
                 'course_user.completed_at',
                 'course_user.completed_sections_count',
-                DB::raw('(SELECT COUNT(*) FROM course_sections WHERE course_id = courses.id) as total_sections')
+                'course_user.current_section_id'
             ])
+            ->withCount('sections')
             ->get();
 
-        return view('dashboard', compact('enrolledCourses'));
+        return view('dashboard', [
+            'enrolledCourses' => $enrolledCourses
+        ]);
     }
 }

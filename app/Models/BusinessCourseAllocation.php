@@ -9,27 +9,24 @@ class BusinessCourseAllocation extends Model
 {
     protected $fillable = [
         'business_course_purchase_id',
-        'business_employee_id',
+        'user_id',
         'allocated_at',
-        'completed',
-        'completed_at'
+        'expires_at'
     ];
 
     protected $casts = [
         'allocated_at' => 'datetime',
-        'completed_at' => 'datetime',
-        'expires_at' => 'datetime',
-        'completed' => 'boolean',
+        'expires_at' => 'datetime'
     ];
 
-    public function purchase()
+    public function purchase(): BelongsTo
     {
         return $this->belongsTo(BusinessCoursePurchase::class, 'business_course_purchase_id');
     }
 
-    public function employee()
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(BusinessEmployee::class, 'business_employee_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function course()
@@ -44,12 +41,25 @@ class BusinessCourseAllocation extends Model
         );
     }
 
-    public function markAsCompleted(): void
+    protected static function booted()
     {
-        $this->update([
-            'completed' => true,
-            'completed_at' => now(),
-        ]);
+        static::created(function ($allocation) {
+            // When a course is allocated, also add it to the user's courses
+            $allocation->user->courses()->attach(
+                $allocation->purchase->course_id,
+                [
+                    'allocated_by_business_id' => $allocation->purchase->business_id,
+                    'allocated_at' => $allocation->allocated_at,
+                    'completed_sections_count' => 0,
+                    'completed' => false
+                ]
+            );
+        });
+
+        static::deleted(function ($allocation) {
+            // When allocation is removed, detach the course from user's courses
+            $allocation->user->courses()->detach($allocation->purchase->course_id);
+        });
     }
 
     public function isExpired(): bool

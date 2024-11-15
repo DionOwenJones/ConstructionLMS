@@ -38,7 +38,7 @@
                                     <div class="text-sm text-gray-900">{{ $purchase->seats_purchased }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $purchase->seats_allocated }}</div>
+                                    <div class="text-sm text-gray-900">{{ $purchase->allocations_count }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <a href="{{ route('business.courses.showAllocationForm', $purchase) }}"

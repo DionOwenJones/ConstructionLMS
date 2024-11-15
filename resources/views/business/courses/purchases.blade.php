@@ -20,6 +20,12 @@
             </div>
         @endif
 
+        @if(session('error'))
+            <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+                {{ session('error') }}
+            </div>
+        @endif
+
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
             <div class="p-6 text-gray-900">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -27,7 +33,7 @@
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seats Purchased</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seats Allocated</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seats Used</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
@@ -42,13 +48,13 @@
                                     <div class="text-sm text-gray-900">{{ $purchase->seats_purchased }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $purchase->allocations_count }}</div>
+                                    <div class="text-sm text-gray-900">{{ $purchase->used_seats }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <a href="{{ route('business.allocations.create', ['course_id' => $purchase->course->id]) }}"
-                                       class="text-indigo-600 hover:text-indigo-900">
-                                        Allocate Seats
-                                    </a>
+                                    @if($purchase->seats_purchased > $purchase->used_seats)
+                                        <a href="{{ route('business.courses.allocate.form', $purchase) }}"
+                                           class="text-indigo-600 hover:text-indigo-900 mr-4">Allocate</a>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

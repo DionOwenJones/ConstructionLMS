@@ -50,7 +50,7 @@
                             <x-dropdown-link :href="route('business.employees.index')">
                                 {{ __('Team Members') }}
                             </x-dropdown-link>
-                            <x-dropdown-link :href="route('business.courses.index')">
+                            <x-dropdown-link :href="route('business.courses.available')">
                                 {{ __('Manage Courses') }}
                             </x-dropdown-link>
                         @endif

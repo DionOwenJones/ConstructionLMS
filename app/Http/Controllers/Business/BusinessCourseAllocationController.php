@@ -52,7 +52,7 @@ class BusinessCourseAllocationController extends Controller
                 ],
                 [
                     'seats_purchased' => 1,
-                    'seats_allocated' => 0,
+                    'price_per_seat' => Course::find($validated['course_id'])->price,
                     'purchased_at' => now()
                 ]
             );
@@ -60,20 +60,9 @@ class BusinessCourseAllocationController extends Controller
             // Create business course allocation
             $allocation = BusinessCourseAllocation::create([
                 'business_course_purchase_id' => $purchase->id,
-                'business_employee_id' => $user->businessEmployee->id,
+                'user_id' => $user->id,
                 'allocated_at' => now(),
                 'expires_at' => $validated['expires_at'] ?? null
-            ]);
-
-            // Increment allocated seats
-            $purchase->increment('seats_allocated');
-
-            // Add to user's courses
-            $user->courses()->attach($validated['course_id'], [
-                'allocated_at' => now(),
-                'allocated_by_business_id' => $business->id,
-                'completed_sections_count' => 0,
-                'completed' => false
             ]);
         });
 

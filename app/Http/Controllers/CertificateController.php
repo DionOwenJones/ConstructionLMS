@@ -3,82 +3,49 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
-use App\Models\Certificate;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 
 class CertificateController extends Controller
 {
-    public function show(Course $course)
+    public function download($id)
     {
-        $this->validateCourseCompletion($course);
+        try {
+            // Get course and verify completion
+            $course = Course::findOrFail($id);
+            $enrollment = DB::table('course_user')
+                ->where('user_id', Auth::id())
+                ->where('course_id', $course->id)
+                ->where('completed', true)
+                ->first();
 
-        $certificate = $this->getOrCreateCertificate($course);
-        $data = $this->prepareCertificateData($certificate, $course);
+            if (!$enrollment) {
+                return back()->with('error', 'You have not completed this course yet.');
+            }
 
-        return PDF::loadView('certificates.template', $data)->stream('certificate.pdf');
-    }
+            // Generate certificate
+            $data = [
+                'course' => $course,
+                'user' => Auth::user(),
+                'completed_at' => Carbon::parse($enrollment->completed_at)->format('F d, Y'),
+                'certificate_number' => sprintf('CERT-%s-%s-%s', 
+                    strtoupper(substr(Auth::user()->name, 0, 3)),
+                    $course->id,
+                    date('Ymd', strtotime($enrollment->completed_at))
+                )
+            ];
 
-    public function download(Course $course)
-    {
-        $this->validateCourseCompletion($course);
+            $pdf = PDF::loadView('certificates.template', $data);
+            
+            return $pdf->download(sprintf('certificate-%s.pdf', Str::slug($course->title)));
 
-        $certificate = $this->getOrCreateCertificate($course);
-        $data = $this->prepareCertificateData($certificate, $course);
-
-        return PDF::loadView('certificates.template', $data)
-            ->download("certificate-{$certificate->certificate_number}.pdf");
-    }
-
-    private function validateCourseCompletion(Course $course)
-    {
-        $enrollment = DB::table('course_user')
-            ->where('user_id', Auth::id())
-            ->where('course_id', $course->id)
-            ->where(function($query) {
-                $query->where('completed', true)
-                      ->orWhere('completed_at', '!=', null);
-            })
-            ->first();
-
-        $businessAllocation = DB::table('business_course_allocations')
-            ->join('business_employees', 'business_course_allocations.business_employee_id', '=', 'business_employees.id')
-            ->join('business_course_purchases', 'business_course_allocations.business_course_purchase_id', '=', 'business_course_purchases.id')
-            ->where('business_employees.user_id', Auth::id())
-            ->where('business_course_purchases.course_id', $course->id)
-            ->where('business_course_allocations.completed', true)
-            ->first();
-
-        if (!$enrollment && !$businessAllocation) {
-            throw new \Illuminate\Auth\Access\AuthorizationException(
-                'You must complete the course to access the certificate.'
-            );
+        } catch (\Exception $e) {
+            Log::error('Error generating certificate: ' . $e->getMessage());
+            return back()->with('error', 'Error generating certificate. Please try again.');
         }
-    }
-
-    private function getOrCreateCertificate(Course $course)
-    {
-        return Certificate::firstOrCreate(
-            [
-                'user_id' => Auth::id(),
-                'course_id' => $course->id,
-            ],
-            [
-                'certificate_number' => 'CERT-' . Str::random(10),
-                'issued_at' => now(),
-            ]
-        );
-    }
-
-    private function prepareCertificateData(Certificate $certificate, Course $course)
-    {
-        return [
-            'user_name' => Auth::user()->name,
-            'course_name' => $course->title,
-            'completion_date' => $certificate->issued_at->format('F d, Y'),
-            'certificate_number' => $certificate->certificate_number
-        ];
     }
 }

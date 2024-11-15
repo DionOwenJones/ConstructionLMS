@@ -12,12 +12,13 @@ class BusinessCoursePurchase extends Model
         'business_id',
         'course_id',
         'seats_purchased',
-        'seats_allocated',
+        'price_per_seat',
         'purchased_at'
     ];
 
     protected $casts = [
         'purchased_at' => 'datetime',
+        'price_per_seat' => 'decimal:2'
     ];
 
     public function business(): BelongsTo
@@ -37,7 +38,7 @@ class BusinessCoursePurchase extends Model
 
     public function getAvailableSeatsAttribute(): int
     {
-        return $this->seats_purchased - $this->seats_allocated;
+        return $this->seats_purchased - $this->allocations()->count();
     }
 
     public function hasAvailableSeats(): bool
@@ -45,33 +46,21 @@ class BusinessCoursePurchase extends Model
         return $this->available_seats > 0;
     }
 
-    public function availableSeats(): int
+    public function getTotalPriceAttribute(): float
     {
-        return $this->seats_purchased - $this->seats_allocated;
+        return $this->seats_purchased * $this->price_per_seat;
     }
 
-    public function allocate(BusinessEmployee $employee)
+    public function allocateToUser(User $user, ?string $expiresAt = null): BusinessCourseAllocation
     {
-        if ($this->availableSeats() <= 0) {
-            throw new \Exception('No available seats for this course.');
+        if (!$this->hasAvailableSeats()) {
+            throw new \Exception('No available seats for this purchase.');
         }
 
-        $allocation = BusinessCourseAllocation::create([
-            'business_course_purchase_id' => $this->id,
-            'business_employee_id' => $employee->id,
+        return $this->allocations()->create([
+            'user_id' => $user->id,
             'allocated_at' => now(),
+            'expires_at' => $expiresAt ? now()->parse($expiresAt) : null
         ]);
-
-        $this->increment('seats_allocated');
-
-        // Attach course to user's dashboard
-        $employee->user->courses()->attach($this->course_id, [
-            'allocated_by_business_id' => $this->business_id,
-            'allocated_at' => now(),
-            'completed_sections_count' => 0,
-            'completed' => false
-        ]);
-
-        return $allocation;
     }
 }

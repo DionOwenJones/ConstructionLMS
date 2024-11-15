@@ -23,7 +23,7 @@
                     @endif
                 </x-nav-link>
 
-                <x-nav-link :href="route('business.courses.index')" :active="request()->routeIs('business.courses.*')">
+                <x-nav-link :href="route('business.courses.available')" :active="request()->routeIs('business.courses.*')">
                     <span>{{ __('Courses') }}</span>
                     @if($courseCount > 0)
                         <span class="ml-2 px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">

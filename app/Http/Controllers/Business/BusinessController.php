@@ -4,130 +4,136 @@ namespace App\Http\Controllers\Business;
 
 use App\Http\Controllers\Controller;
 use App\Models\Business;
+use App\Models\BusinessEmployee;
+use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 
 class BusinessController extends Controller
 {
-    /**
-     * Display business dashboard/overview
-     */
     public function dashboard()
     {
-        $business = Auth::user()->business;
-
-        $totalEmployees = $business->employees()->count();
-        $totalCourses = $business->coursePurchases()->count();
-
-        // Get completed courses count with proper joins
-        $completedCourses = DB::table('business_course_allocations as bca')
-            ->join('business_employees as be', 'bca.business_employee_id', '=', 'be.id')
-            ->join('business_course_purchases as bcp', 'bca.business_course_purchase_id', '=', 'bcp.id')
-            ->where('be.business_id', $business->id)
-            ->where('bca.completed', true)
-            ->count();
-
-        // Get recent completions with proper date handling
-        $recentCompletions = DB::table('business_course_allocations as bca')
-            ->join('business_employees as be', 'bca.business_employee_id', '=', 'be.id')
-            ->join('users', 'be.user_id', '=', 'users.id')
-            ->join('business_course_purchases as bcp', 'bca.business_course_purchase_id', '=', 'bcp.id')
-            ->join('courses', 'bcp.course_id', '=', 'courses.id')
-            ->where('be.business_id', $business->id)
-            ->where('bca.completed', true)
+        $business = Business::where('user_id', Auth::id())->firstOrFail();
+        
+        // Get recent course completions with proper joins and selection
+        $recentCompletions = DB::table('course_user')
+            ->join('users', 'course_user.user_id', '=', 'users.id')
+            ->join('courses', 'course_user.course_id', '=', 'courses.id')
+            ->join('business_employees', function($join) use ($business) {
+                $join->on('users.id', '=', 'business_employees.user_id')
+                    ->where('business_employees.business_id', '=', $business->id);
+            })
+            ->where('course_user.completed', true)
             ->select([
                 'users.name as employee_name',
                 'courses.title as course_title',
-                DB::raw('CAST(bca.completed_at AS DATETIME) as completed_at'),
-                'be.id as employee_id',
+                'course_user.completed_at',
+                'business_employees.id as employee_id',
                 'courses.id as course_id'
             ])
-            ->orderBy('bca.completed_at', 'desc')
-            ->limit(10)
-            ->get()
-            ->map(function($completion) {
-                $completion->completed_at = \Carbon\Carbon::parse($completion->completed_at);
-                return $completion;
-            });
+            ->orderBy('course_user.completed_at', 'desc')
+            ->limit(5)
+            ->get();
 
-        return view('business.dashboard', compact(
-            'business',
-            'totalEmployees',
-            'totalCourses',
-            'completedCourses',
-            'recentCompletions'
-        ));
+        // Get course progress overview
+        $courseProgress = DB::table('courses')
+            ->join('business_course_purchases', 'courses.id', '=', 'business_course_purchases.course_id')
+            ->where('business_course_purchases.business_id', $business->id)
+            ->select([
+                'courses.id',
+                'courses.title',
+                DB::raw('COUNT(DISTINCT course_user.user_id) as total_count'),
+                DB::raw('COUNT(DISTINCT CASE WHEN course_user.completed = 1 THEN course_user.user_id END) as completed_count'),
+                DB::raw('COALESCE(AVG(CASE WHEN course_user.completed = 1 THEN 100 ELSE COALESCE(course_user.completed_sections_count, 0) END), 0) as average_progress')
+            ])
+            ->leftJoin('course_user', function($join) use ($business) {
+                $join->on('courses.id', '=', 'course_user.course_id')
+                    ->join('business_employees', 'course_user.user_id', '=', 'business_employees.user_id')
+                    ->where('business_employees.business_id', '=', $business->id);
+            })
+            ->groupBy('courses.id', 'courses.title')
+            ->get();
+
+        // Get total completed courses
+        $completedCourses = DB::table('course_user')
+            ->join('business_employees', 'course_user.user_id', '=', 'business_employees.user_id')
+            ->where('business_employees.business_id', $business->id)
+            ->where('course_user.completed', true)
+            ->count();
+
+        return view('business.dashboard', [
+            'business' => $business,
+            'totalEmployees' => $business->employees()->count(),
+            'totalCourses' => $business->countDistinctCourses(),
+            'completedCourses' => $completedCourses,
+            'recentCompletions' => $recentCompletions,
+            'courseProgress' => $courseProgress,
+        ]);
     }
 
-    /**
-     * Show the business profile/settings
-     */
+    public function certificates()
+    {
+        $business = Business::where('user_id', Auth::id())->firstOrFail();
+        
+        $employees = $business->employees()
+            ->with(['user' => function($query) {
+                $query->select('id', 'name', 'email');
+            }])
+            ->paginate(10);
+
+        // Load completed courses for each employee with proper selection
+        foreach ($employees as $employee) {
+            $employee->completedCourses = Course::join('course_user', 'courses.id', '=', 'course_user.course_id')
+                ->where('course_user.user_id', $employee->user_id)
+                ->where('course_user.completed', true)
+                ->select([
+                    'courses.*',
+                    'course_user.completed_at',
+                    'course_user.id as enrollment_id'
+                ])
+                ->get();
+        }
+
+        return view('business.dashboard.certificates', [
+            'employees' => $employees,
+        ]);
+    }
+
     public function profile()
     {
-        $business = Auth::user()->business;
+        $business = Business::where('user_id', Auth::id())->firstOrFail();
         return view('business.profile', compact('business'));
     }
 
-    /**
-     * Update business profile/settings
-     */
     public function update(Request $request)
     {
+        $business = Business::where('user_id', Auth::id())->firstOrFail();
+        
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email',
-            'phone' => 'nullable|string|max:20',
-            'address' => 'nullable|string|max:500',
-            'logo' => 'nullable|image|max:2048', // 2MB max
+            'company_name' => 'required|string|max:255',
         ]);
-
-        $business = Auth::user()->business;
-
-        // Handle logo upload if provided
-        if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store('business-logos', 'public');
-            $validated['logo'] = $path;
-
-            // Delete old logo if exists
-            if ($business->logo) {
-                Storage::disk('public')->delete($business->logo);
-            }
-        }
 
         $business->update($validated);
 
-        return redirect()->route('business.profile')
-            ->with('success', 'Business profile updated successfully');
+        return redirect()->route('business.profile')->with('success', 'Business profile updated successfully.');
     }
 
-    /**
-     * Show business analytics/reports
-     */
     public function analytics()
     {
-        $business = Auth::user()->business;
+        $business = Business::where('user_id', Auth::id())->firstOrFail();
+        
+        $analytics = [
+            'totalEmployees' => $business->employees()->count(),
+            'totalCourses' => $business->countDistinctCourses(),
+            'employeeProgress' => $business->employees()->with('user')->get()->map(function ($employee) {
+                return [
+                    'name' => $employee->user->name,
+                    'completion' => $employee->courseCompletionPercentage(),
+                ];
+            }),
+        ];
 
-        // Get analytics data
-        $monthlyCompletions = $business->courseAllocations()
-            ->where('completed', true)
-            ->whereYear('completed_at', now()->year)
-            ->whereMonth('completed_at', now()->month)
-            ->count();
-
-        $courseProgress = $business->courseAllocations()
-            ->with('course')
-            ->select('course_id')
-            ->selectRaw('COUNT(*) as total')
-            ->selectRaw('SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed')
-            ->groupBy('course_id')
-            ->get();
-
-        return view('business.analytics', compact(
-            'business',
-            'monthlyCompletions',
-            'courseProgress'
-        ));
+        return view('business.analytics', compact('analytics'));
     }
 }

@@ -8,28 +8,25 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminCourseController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\HomeController;
-use App\Http\Middleware\CheckRole;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Business\BusinessController;
 use App\Http\Controllers\Business\BusinessEmployeeController;
-use App\Http\Controllers\Business\BusinessCourseController;
 use App\Http\Controllers\Business\BusinessReportController;
-use App\Http\Controllers\Business\BusinessCourseAllocationController;
-use App\Http\Controllers\Business\BusinessCoursePurchaseController;
-use App\Http\Controllers\EmployeeController;
-use App\Http\Controllers\SectionController;
+use App\Http\Controllers\Business\BusinessCourseManagementController;
 use App\Http\Controllers\Business\BusinessCertificateController;
+use App\Http\Controllers\CertificateController;
+use App\Http\Middleware\CheckRole;
+use App\Models\User;
+use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('welcome');
-Route::get('/home', [HomeController::class, 'index'])->name('home');  // Add this line
+Route::get('/home', [HomeController::class, 'index'])->name('home');
 Route::get('/courses', [CourseController::class, 'index'])->name('courses.index');
-Route::get('/courses/{course}', [CourseController::class, 'show'])->name('courses.show');
+Route::get('/courses/{id}/preview', [CourseController::class, 'preview'])->name('courses.preview');
 
 //login + register routes
-
 Route::middleware('guest')->group(function () {
     // Registration
     Route::get('register', [RegisterController::class, 'showRegistrationForm'])->name('register');
@@ -40,10 +37,7 @@ Route::middleware('guest')->group(function () {
     Route::post('login', [LoginController::class, 'login']);
 });
 
-
-
-
-// Authentication routes (if you're using Laravel's built-in auth)
+// Authentication routes
 require __DIR__.'/auth.php';
 
 // Authenticated user routes
@@ -51,17 +45,21 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Course enrollment and interaction
+    // Course routes
     Route::prefix('courses')->name('courses.')->group(function () {
-        Route::post('{course}/enroll', [CourseEnrollmentController::class, 'enroll'])->name('enroll');
-        Route::get('{course}/preview', [CourseController::class, 'preview'])->name('preview');
-        Route::get('{course}/view', [CourseController::class, 'show'])->name('view');
-        Route::post('{course}/sections/{courseSection}/complete', [SectionController::class, 'complete'])
-            ->name('complete-section');
-        Route::post('{course}/sections/{section}/next', [SectionController::class, 'next'])
-            ->name('next-section');
-        Route::post('{course}/sections/{section}/previous', [SectionController::class, 'previous'])
-            ->name('previous-section');
+        Route::get('{id}/view', [CourseController::class, 'view'])->name('view');
+        Route::get('{id}/preview', [CourseController::class, 'preview'])->name('preview');
+        Route::post('{id}/enroll', [CourseController::class, 'enroll'])->name('enroll');
+        Route::post('{id}/sections/{sectionId}/complete', [CourseController::class, 'completeSection'])->name('complete-section');
+        Route::post('{id}/sections/{sectionId}/next', [CourseController::class, 'nextSection'])->name('next-section');
+        Route::post('{id}/sections/{sectionId}/previous', [CourseController::class, 'previousSection'])->name('previous-section');
+        Route::post('{id}/complete', [CourseController::class, 'completeCourse'])->name('complete');
+        Route::post('{id}/sections/{sectionId}/current', [CourseController::class, 'updateCurrentSection'])->name('current-section');
+    });
+
+    // Certificate routes
+    Route::prefix('certificates')->name('certificates.')->group(function () {
+        Route::get('{id}/download', [CertificateController::class, 'download'])->name('download');
     });
 
     // Profile routes
@@ -70,15 +68,13 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('/', [ProfileController::class, 'update'])->name('update');
     });
 
-    Route::get('/api/sections/{section}', [SectionController::class, 'show']);
-    Route::post('/api/sections/{section}/mark-current', [SectionController::class, 'markCurrent']);
+    // API routes
+    Route::get('/api/sections/{section}', [CourseController::class, 'showSection']);
+    Route::post('/api/sections/{section}/mark-current', [CourseController::class, 'markCurrentSection']);
 });
 
-
-
-
-// Admin routes (add this inside your existing admin routes group, around line 74)
-Route::middleware(['auth', CheckRole::class.':admin'])->prefix('admin')->name('admin.')->group(function () {
+// Admin routes 
+Route::middleware(['auth', CheckRole::class.':'.User::ROLE_ADMIN])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminCourseController::class, 'dashboard'])->name('dashboard');
 
     // Courses Management
@@ -93,10 +89,8 @@ Route::middleware(['auth', CheckRole::class.':admin'])->prefix('admin')->name('a
         Route::post('/{course}/publish', [AdminCourseController::class, 'publish'])->name('publish');
         Route::post('/{course}/unpublish', [AdminCourseController::class, 'unpublish'])->name('unpublish');
     });
-    Route::get('/dashboard', [App\Http\Controllers\Admin\AdminController::class, 'dashboard'])
-    ->name('dashboard');
 
-    // Users Management (add this new section)
+    // Users Management 
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/', [AdminUserController::class, 'index'])->name('index');
         Route::get('/create', [AdminUserController::class, 'create'])->name('create');
@@ -108,53 +102,51 @@ Route::middleware(['auth', CheckRole::class.':admin'])->prefix('admin')->name('a
     });
 });
 
-
-
-
 // Business routes
-Route::middleware(['auth', CheckRole::class.':business'])->prefix('business')->name('business.')->group(function () {
+Route::middleware(['auth', CheckRole::class.':'.User::ROLE_BUSINESS])->prefix('business')->name('business.')->group(function () {
     Route::get('/dashboard', [BusinessController::class, 'dashboard'])->name('dashboard');
+    Route::get('/certificates', [BusinessController::class, 'certificates'])->name('certificates');
     Route::get('/profile', [BusinessController::class, 'profile'])->name('profile');
     Route::put('/profile', [BusinessController::class, 'update'])->name('profile.update');
     Route::get('/analytics', [BusinessController::class, 'analytics'])->name('analytics');
 
     // Employee management
     Route::resource('employees', BusinessEmployeeController::class);
-    Route::post('employees/{employee}/allocate-course', [BusinessEmployeeController::class, 'allocateCourse'])->name('business.employees.allocate-course');
 
-    // Course purchasing
-    Route::resource('courses', BusinessCourseController::class)->only(['index']);
-    Route::get('/courses/available', [BusinessCourseController::class, 'available'])->name('courses.available');
-    Route::post('/courses/{course}/purchase', [BusinessCourseController::class, 'purchase'])->name('courses.purchase');
+    // Course Management
+    Route::prefix('courses')->name('courses.')->group(function () {
+        Route::get('/available', [BusinessCourseManagementController::class, 'available'])->name('available');
+        Route::get('/purchases', [BusinessCourseManagementController::class, 'purchases'])->name('purchases');
+        Route::post('/{course}/purchase', [BusinessCourseManagementController::class, 'purchase'])->name('purchase');
+    });
 
-    // Course allocation
-    Route::get('/courses/purchased', [BusinessCourseController::class, 'purchased'])->name('courses.purchased');
-    Route::get('/courses/{purchase}/allocate', [BusinessCourseController::class, 'showAllocationForm'])
-        ->name('courses.showAllocationForm');
-    Route::post('/courses/{purchase}/allocate', [BusinessCourseController::class, 'allocate'])
-        ->name('courses.allocate');
-
-    // Reports
-    Route::get('/reports/progress', [BusinessReportController::class, 'progress'])->name('reports.progress');
-
-    // Business course allocation routes
-    Route::resource('allocations', BusinessCourseAllocationController::class);
-
-    Route::resource('purchases', BusinessCoursePurchaseController::class);
-
-    // Reports
-    Route::get('/reports', [BusinessReportController::class, 'index'])->name('reports.index');
-    Route::get('/reports/purchases', [BusinessReportController::class, 'purchases'])->name('reports.purchases');
-    Route::get('/reports/allocations', [BusinessReportController::class, 'allocations'])->name('reports.allocations');
-    Route::get('/reports/employee-progress', [BusinessReportController::class, 'employeeProgress'])->name('reports.employee-progress');
-    Route::get('/reports/export/{type}', [BusinessReportController::class, 'export'])->name('reports.export');
-
-    Route::resource('courses', BusinessCourseController::class);
+    // Certificate routes
+    Route::prefix('certificates')->name('certificates.')->group(function () {
+        Route::get('/employee/{employeeId}', [BusinessCertificateController::class, 'viewEmployeeCertificates'])->name('employee');
+        Route::get('/employee/{employeeId}/course/{courseId}/download', [BusinessCertificateController::class, 'download'])->name('download');
+    });
 });
 
-Route::middleware(['auth', 'business'])->group(function () {
-    Route::get('business/certificates/{employee}/{course}/download', [BusinessCertificateController::class, 'download'])
-        ->name('business.certificates.download');
+// Employee/User routes
+Route::middleware(['auth', CheckRole::class.':'.User::ROLE_USER])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Course routes
+    Route::prefix('courses')->name('courses.')->group(function () {
+        Route::get('/', [CourseController::class, 'index'])->name('index');
+        Route::get('/{id}', [CourseController::class, 'view'])->name('view');
+        Route::get('/{id}/sections/{sectionId}', [CourseController::class, 'showSection'])->name('section');
+        Route::post('/{id}/sections/{sectionId}/next', [CourseController::class, 'nextSection'])->name('next-section');
+        Route::post('/{id}/sections/{sectionId}/previous', [CourseController::class, 'previousSection'])->name('previous-section');
+        Route::post('/{id}/complete', [CourseController::class, 'completeCourse'])->name('complete');
+        Route::post('/{id}/sections/{sectionId}/current', [CourseController::class, 'updateCurrentSection'])->name('current-section');
+    });
+
+    // Certificate routes
+    Route::prefix('certificates')->name('certificates.')->group(function () {
+        Route::get('/{id}/download', [CertificateController::class, 'download'])->name('download');
+    });
 });
-
-

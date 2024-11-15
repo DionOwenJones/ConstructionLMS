@@ -22,14 +22,15 @@ class BusinessEmployeeController extends Controller
             ->paginate(10);
 
         $availableCourses = BusinessCoursePurchase::where('business_id', Auth::user()->business->id)
-            ->whereColumn('seats_allocated', '<', 'seats_purchased')
+            ->withCount('allocations')
+            ->having('seats_purchased', '>', 'allocations_count')
             ->with('course')
             ->get()
             ->map(function($purchase) {
                 return [
                     'id' => $purchase->course->id,
                     'name' => $purchase->course->name,
-                    'available_seats' => $purchase->seats_purchased - $purchase->seats_allocated
+                    'available_seats' => $purchase->seats_purchased - $purchase->allocations_count
                 ];
             });
 

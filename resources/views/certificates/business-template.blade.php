@@ -15,7 +15,7 @@
         .certificate {
             max-width: 800px;
             margin: 0 auto;
-            border: 2px solid #ddd;
+            border: 2px solid #2c5282;
             padding: 40px;
             position: relative;
             background: linear-gradient(45deg, #f8fafc 25%, transparent 25%, transparent 75%, #f8fafc 75%, #f8fafc),
@@ -55,6 +55,12 @@
             font-size: 24px;
             color: #2c5282;
             font-weight: bold;
+            margin: 20px 0;
+        }
+        .business-name {
+            font-size: 20px;
+            color: #4a5568;
+            font-style: italic;
             margin: 20px 0;
         }
         .date {
@@ -116,6 +122,7 @@
 
         <div class="content">
             <div class="name">{{ $user->name }}</div>
+            <div class="business-name">Employee of {{ $business_name }}</div>
             <p>has successfully completed the course</p>
             <div class="course-name">{{ $course->title }}</div>
             <div class="date">Completed on {{ $completed_at }}</div>

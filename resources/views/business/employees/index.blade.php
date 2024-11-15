@@ -28,6 +28,7 @@
                         <th class="px-4 py-3">Role</th>
                         <th class="px-4 py-3">Status</th>
                         <th class="px-4 py-3">Actions</th>
+                        <th class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">Certificates</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -83,10 +84,30 @@
                                 </button>
                             </div>
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div class="flex justify-end space-x-3">
+                                <a href="{{ route('business.certificates.employee', $employee->id) }}"
+                                   class="text-green-600 hover:text-green-900">
+                                    View Certificates
+                                </a>
+                                <a href="{{ route('business.employees.edit', $employee->id) }}"
+                                   class="text-indigo-600 hover:text-indigo-900">
+                                    Edit
+                                </a>
+                                <form action="{{ route('business.employees.destroy', $employee->id) }}" method="POST" class="inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-600 hover:text-red-900"
+                                            onclick="return confirm('Are you sure you want to remove this employee?')">
+                                        Remove
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">
                             <div class="flex flex-col items-center justify-center">
                                 <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
@@ -110,4 +131,3 @@
     </div>
 </div>
 @endsection
-
