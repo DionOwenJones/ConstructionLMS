@@ -14,9 +14,16 @@ class BusinessController extends Controller
 {
     public function dashboard()
     {
-        $business = Business::where('user_id', Auth::id())->firstOrFail();
+        // Get the business for the current user
+        $business = Auth::user()->getBusiness();
         
-        // Get recent course completions with proper joins and selection
+        // If no business exists, show the business setup form
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
+        
+        // Get recent course completions
         $recentCompletions = DB::table('course_user')
             ->join('users', 'course_user.user_id', '=', 'users.id')
             ->join('courses', 'course_user.course_id', '=', 'courses.id')
@@ -43,38 +50,51 @@ class BusinessController extends Controller
             ->select([
                 'courses.id',
                 'courses.title',
-                DB::raw('COUNT(DISTINCT course_user.user_id) as total_count'),
-                DB::raw('COUNT(DISTINCT CASE WHEN course_user.completed = 1 THEN course_user.user_id END) as completed_count'),
-                DB::raw('COALESCE(AVG(CASE WHEN course_user.completed = 1 THEN 100 ELSE COALESCE(course_user.completed_sections_count, 0) END), 0) as average_progress')
+                DB::raw('COUNT(DISTINCT business_employees.user_id) as total_enrolled'),
+                DB::raw('SUM(CASE WHEN course_user.completed = 1 THEN 1 ELSE 0 END) as completed_count'),
+                DB::raw('ROUND(SUM(CASE WHEN course_user.completed = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(DISTINCT business_employees.user_id), 0), 2) as completion_rate')
             ])
-            ->leftJoin('course_user', function($join) use ($business) {
+            ->leftJoin('business_employees', 'business_course_purchases.business_id', '=', 'business_employees.business_id')
+            ->leftJoin('course_user', function($join) {
                 $join->on('courses.id', '=', 'course_user.course_id')
-                    ->join('business_employees', 'course_user.user_id', '=', 'business_employees.user_id')
-                    ->where('business_employees.business_id', '=', $business->id);
+                    ->on('business_employees.user_id', '=', 'course_user.user_id');
             })
             ->groupBy('courses.id', 'courses.title')
             ->get();
 
-        // Get total completed courses
+        // Get total employees count
+        $totalEmployees = BusinessEmployee::where('business_id', $business->id)->count();
+
+        // Get total courses count
+        $totalCourses = $business->coursePurchases()->distinct('course_id')->count();
+
+        // Get completed courses count
         $completedCourses = DB::table('course_user')
-            ->join('business_employees', 'course_user.user_id', '=', 'business_employees.user_id')
-            ->where('business_employees.business_id', $business->id)
-            ->where('course_user.completed', true)
+            ->join('business_employees', function($join) use ($business) {
+                $join->on('course_user.user_id', '=', 'business_employees.user_id')
+                    ->where('business_employees.business_id', '=', $business->id);
+            })
+            ->where('completed', true)
             ->count();
 
-        return view('business.dashboard', [
-            'business' => $business,
-            'totalEmployees' => $business->employees()->count(),
-            'totalCourses' => $business->countDistinctCourses(),
-            'completedCourses' => $completedCourses,
-            'recentCompletions' => $recentCompletions,
-            'courseProgress' => $courseProgress,
-        ]);
+        return view('business.dashboard', compact(
+            'business',
+            'recentCompletions',
+            'courseProgress',
+            'totalEmployees',
+            'totalCourses',
+            'completedCourses'
+        ));
     }
 
     public function certificates()
     {
-        $business = Business::where('user_id', Auth::id())->firstOrFail();
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
         
         $employees = $business->employees()
             ->with(['user' => function($query) {
@@ -102,26 +122,50 @@ class BusinessController extends Controller
 
     public function profile()
     {
-        $business = Business::where('user_id', Auth::id())->firstOrFail();
-        return view('business.profile', compact('business'));
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
+        
+        return view('business.profile.index', compact('business'));
     }
 
-    public function update(Request $request)
+    public function updateProfile(Request $request)
     {
-        $business = Business::where('user_id', Auth::id())->firstOrFail();
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
         
         $validated = $request->validate([
             'company_name' => 'required|string|max:255',
+            'contact_email' => 'required|email|max:255',
+            'phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string|max:500',
+            'notifications_enabled' => 'boolean',
         ]);
+
+        // Set notifications_enabled to false if not present in request
+        $validated['notifications_enabled'] = $request->has('notifications_enabled');
 
         $business->update($validated);
 
-        return redirect()->route('business.profile')->with('success', 'Business profile updated successfully.');
+        return redirect()->route('business.profile')
+            ->with('success', 'Business profile updated successfully');
     }
 
     public function analytics()
     {
-        $business = Business::where('user_id', Auth::id())->firstOrFail();
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
         
         $analytics = [
             'totalEmployees' => $business->employees()->count(),

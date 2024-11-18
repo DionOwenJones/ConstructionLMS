@@ -45,6 +45,14 @@ class BusinessEmployee extends Model
     }
 
     /**
+     * Get all course allocations for this employee through their user account.
+     */
+    public function courseAllocations()
+    {
+        return $this->hasMany(BusinessCourseAllocation::class, 'user_id', 'user_id');
+    }
+
+    /**
      * Get all completed courses for this employee.
      */
     public function completedCourses()

@@ -152,6 +152,7 @@ return [
 
         // Package Service Providers...
         Barryvdh\DomPDF\ServiceProvider::class,
+        Laravel\Cashier\CashierServiceProvider::class,
 
         // Application Service Providers...
         App\Providers\AppServiceProvider::class,

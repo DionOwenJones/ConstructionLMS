@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\CourseSection;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class CourseSeeder extends Seeder
 {
@@ -93,18 +94,20 @@ class CourseSeeder extends Seeder
                 'featured' => $featured,
                 'image' => null,
                 'user_id' => $admin->id,
+                'slug' => Str::slug($courseData['title']),
                 'created_at' => $createdAt,
                 'updated_at' => $createdAt,
                 'published_at' => $createdAt
             ]);
 
-            // Create sections
-            foreach ($courseData['sections'] as $index => $sectionTitle) {
+            // Create sections for each course
+            $order = 1;
+            foreach ($courseData['sections'] as $sectionTitle) {
                 CourseSection::create([
                     'course_id' => $course->id,
                     'title' => $sectionTitle,
                     'content' => "# {$sectionTitle}\n\nDetailed content for {$sectionTitle} will be covered in this section.",
-                    'order' => $index + 1
+                    'order' => $order++
                 ]);
             }
 

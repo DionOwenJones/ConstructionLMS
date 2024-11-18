@@ -9,7 +9,7 @@ class BusinessCourseAllocation extends Model
 {
     protected $fillable = [
         'business_course_purchase_id',
-        'user_id',
+        'business_employee_id',
         'allocated_at',
         'expires_at'
     ];
@@ -24,9 +24,9 @@ class BusinessCourseAllocation extends Model
         return $this->belongsTo(BusinessCoursePurchase::class, 'business_course_purchase_id');
     }
 
-    public function user(): BelongsTo
+    public function employee(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(BusinessEmployee::class, 'business_employee_id');
     }
 
     public function course()
@@ -45,7 +45,7 @@ class BusinessCourseAllocation extends Model
     {
         static::created(function ($allocation) {
             // When a course is allocated, also add it to the user's courses
-            $allocation->user->courses()->attach(
+            $allocation->employee->user->courses()->attach(
                 $allocation->purchase->course_id,
                 [
                     'allocated_by_business_id' => $allocation->purchase->business_id,
@@ -58,7 +58,7 @@ class BusinessCourseAllocation extends Model
 
         static::deleted(function ($allocation) {
             // When allocation is removed, detach the course from user's courses
-            $allocation->user->courses()->detach($allocation->purchase->course_id);
+            $allocation->employee->user->courses()->detach($allocation->purchase->course_id);
         });
     }
 

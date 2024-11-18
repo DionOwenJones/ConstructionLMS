@@ -3,12 +3,23 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Providers\RouteServiceProvider;
+use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 
 class LoginController extends Controller
 {
+    use AuthenticatesUsers;
+
+    protected $redirectTo = RouteServiceProvider::HOME;
+
+    public function __construct()
+    {
+        $this->middleware('guest')->except(['logout', 'destroy']);
+    }
+
     public function showLoginForm()
     {
         return view('auth.login');
@@ -40,11 +51,13 @@ class LoginController extends Controller
         ])->onlyInput('email');
     }
 
-    public function logout(Request $request)
+    public function destroy(Request $request)
     {
         Auth::logout();
+ 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+     
         return redirect('/');
     }
 }

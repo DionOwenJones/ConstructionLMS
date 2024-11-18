@@ -13,12 +13,15 @@ class BusinessCoursePurchase extends Model
         'course_id',
         'seats_purchased',
         'price_per_seat',
+        'total_amount',
+        'stripe_payment_id',
         'purchased_at'
     ];
 
     protected $casts = [
         'purchased_at' => 'datetime',
-        'price_per_seat' => 'decimal:2'
+        'price_per_seat' => 'decimal:2',
+        'total_amount' => 'decimal:2'
     ];
 
     public function business(): BelongsTo
@@ -48,19 +51,19 @@ class BusinessCoursePurchase extends Model
 
     public function getTotalPriceAttribute(): float
     {
-        return $this->seats_purchased * $this->price_per_seat;
+        return $this->total_amount ?? ($this->seats_purchased * $this->price_per_seat);
     }
 
-    public function allocateToUser(User $user, ?string $expiresAt = null): BusinessCourseAllocation
+    public function allocateToEmployee(BusinessEmployee $employee, ?string $expiresAt = null): BusinessCourseAllocation
     {
         if (!$this->hasAvailableSeats()) {
-            throw new \Exception('No available seats for this purchase.');
+            throw new \Exception('No available seats for this course purchase.');
         }
 
-        return $this->allocations()->create([
-            'user_id' => $user->id,
-            'allocated_at' => now(),
-            'expires_at' => $expiresAt ? now()->parse($expiresAt) : null
+        return BusinessCourseAllocation::create([
+            'business_course_purchase_id' => $this->id,
+            'business_employee_id' => $employee->id,
+            'expires_at' => $expiresAt
         ]);
     }
 }

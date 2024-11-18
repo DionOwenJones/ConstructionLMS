@@ -15,7 +15,7 @@ class AddRoleToUsersTable extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             if (!Schema::hasColumn('users', 'role')) {
-                $table->string('role')->default('user');
+                $table->enum('role', ['USER', 'BUSINESS', 'ADMIN'])->default('USER');
             }
         });
     }

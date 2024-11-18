@@ -1,86 +1,60 @@
+@props(['course', 'purchasedCourseIds' => []])
+
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-lg transition-all duration-200">
-    <!-- Course Image -->
-    <div class="relative aspect-video bg-gray-100">
+    <div class="relative">
         @if($course->image)
-            <img src="{{ Storage::disk('public')->url($course->image) }}"
-                 alt="{{ $course->title }}"
-                 class="w-full h-full object-cover">
+            <img src="{{ asset('storage/' . $course->image) }}" 
+                 alt="{{ $course->title }}" 
+                 class="w-full h-48 object-cover">
         @else
-            <div class="absolute inset-0 flex items-center justify-center">
-                <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            <div class="w-full h-48 bg-orange-100 flex items-center justify-center">
+                <svg class="w-16 h-16 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                 </svg>
             </div>
         @endif
-
-        <!-- Course Status Badges -->
-        <div class="absolute top-4 right-4 flex space-x-2">
-            @if($course->isNewCourse())
-                <span class="px-3 py-1 bg-green-500 text-white text-sm font-medium rounded-full">
-                    New
-                </span>
-            @endif
-            @if($course->isPopularCourse())
-                <span class="px-3 py-1 bg-orange-500 text-white text-sm font-medium rounded-full">
-                    Popular
-                </span>
-            @endif
-        </div>
     </div>
 
     <div class="p-6">
-        <!-- Course Header -->
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ $course->title }}</h3>
+        <p class="text-gray-600 text-sm line-clamp-2 mb-4">{{ $course->description }}</p>
+
         <div class="flex items-center justify-between mb-4">
-            @if($course->user)
+            <div class="flex items-center space-x-2">
                 <div class="flex items-center">
-                    <img src="{{ $course->user->profile_photo_url }}"
-                         alt="{{ $course->user->name }}"
-                         class="w-10 h-10 rounded-full border-2 border-white shadow-sm">
-                    <div class="ml-3">
-                        <p class="text-sm font-medium text-gray-900">{{ $course->user->name }}</p>
-                        <p class="text-xs text-gray-500">Instructor</p>
-                    </div>
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="ml-1 text-sm text-gray-600">{{ $course->estimated_hours ?? '2' }} hours</span>
                 </div>
-            @endif
-        </div>
-
-        <!-- Course Info -->
-        <h3 class="text-xl font-semibold text-gray-900 mb-2">{{ $course->title }}</h3>
-        <p class="text-gray-600 mb-4 line-clamp-2">{{ $course->description }}</p>
-
-        <!-- Course Stats -->
-        <div class="flex items-center justify-between text-sm text-gray-500 mb-4">
-            <div class="flex items-center space-x-4">
-                <span>{{ $course->sections->count() }} sections</span>
-                <span>{{ $course->estimated_hours ?? '2' }} hours</span>
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="ml-1 text-sm text-gray-600">{{ $course->sections->count() }} sections</span>
+                </div>
             </div>
-            <span>{{ $course->getEnrollmentCount() }} enrolled</span>
+            <span class="text-lg font-bold text-orange-600">{{ $course->formatted_price }}</span>
         </div>
 
-        <!-- Price and Action -->
-        <div class="flex items-center justify-between">
-            <span class="text-lg font-bold text-orange-600">${{ number_format($course->price, 2) }}</span>
+        <div class="flex justify-end">
             @auth
-                @if(isset($enrolledCourseIds) && in_array($course->id, $enrolledCourseIds))
-                    <a href="{{ route('courses.view', $course) }}"
-                       class="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors">
-                        Continue Learning
+                @if(in_array($course->id, $purchasedCourseIds))
+                    <a href="{{ route('courses.show', $course) }}"
+                       class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors">
+                        Access Course
                         <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                         </svg>
                     </a>
                 @else
-                    <form action="{{ route('courses.enroll', $course) }}" method="POST">
-                        @csrf
-                        <button type="submit"
-                                class="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors">
-                            Enroll Now
-                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                            </svg>
-                        </button>
-                    </form>
+                    <a href="{{ route('courses.purchase', $course) }}"
+                       class="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors">
+                        Purchase Course
+                        <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                    </a>
                 @endif
             @else
                 <a href="{{ route('courses.preview', $course) }}"

@@ -1,7 +1,7 @@
 @php
     use Illuminate\Support\Str;
 @endphp
-@extends('layouts.app')
+@extends('layouts.business')
 
 @section('content')
 <div class="py-12">

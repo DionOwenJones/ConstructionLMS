@@ -8,15 +8,15 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::table('course_user', function (Blueprint $table) {
-            $table->timestamp('completed_at')->nullable();
+        Schema::table('businesses', function (Blueprint $table) {
+            $table->string('stripe_id')->nullable()->after('owner_id');
         });
     }
 
     public function down()
     {
-        Schema::table('course_user', function (Blueprint $table) {
-            $table->dropColumn('completed_at');
+        Schema::table('businesses', function (Blueprint $table) {
+            $table->dropColumn('stripe_id');
         });
     }
 };

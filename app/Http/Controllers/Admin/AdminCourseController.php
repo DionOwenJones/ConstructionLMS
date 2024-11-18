@@ -29,43 +29,99 @@ class AdminCourseController extends Controller
 
     protected function handleSectionContent($section, $request, $index)
     {
-        $content = [];
         $type = $request->input("sections.{$index}.type");
+
+        \Illuminate\Support\Facades\Log::info('Processing section content:', [
+            'type' => $type,
+            'data' => $request->input("sections.{$index}")
+        ]);
 
         switch($type) {
             case 'text':
-                $content = [
-                    'text' => $request->input("sections.{$index}.content")
+                return [
+                    'type' => 'text',
+                    'data' => [
+                        'text' => $request->input("sections.{$index}.content")
+                    ]
                 ];
-                break;
+
+            case 'video':
+                return [
+                    'type' => 'video',
+                    'data' => [
+                        'video_url' => $request->input("sections.{$index}.content")
+                    ]
+                ];
 
             case 'image':
-                if ($request->hasFile("sections.{$index}.image")) {
-                    $path = $request->file("sections.{$index}.image")->store('section-images', 'public');
-                    $content = [
-                        'image_path' => $path
+                if ($request->hasFile("sections.{$index}.content")) {
+                    $path = $request->file("sections.{$index}.content")->store('section-images', 'public');
+                    return [
+                        'type' => 'image',
+                        'data' => [
+                            'image_path' => $path
+                        ]
                     ];
                 }
                 break;
 
-            case 'video':
-                $content = [
-                    'video_url' => $request->input("sections.{$index}.video_url")
-                ];
-                break;
-
             case 'quiz':
-                $content = [
-                    'questions' => $request->input("sections.{$index}.quiz.questions", []),
-                    'answers' => $request->input("sections.{$index}.quiz.answers", []),
-                    'correct_answers' => $request->input("sections.{$index}.quiz.correct", [])
+                $questions = $request->input("sections.{$index}.quiz.questions", []);
+                $answers = $request->input("sections.{$index}.quiz.answers", []);
+                $correctAnswers = $request->input("sections.{$index}.quiz.correct", []);
+
+                // Log the raw quiz data
+                \Illuminate\Support\Facades\Log::info('Raw quiz data:', [
+                    'questions' => $questions,
+                    'answers' => $answers,
+                    'correct_answers' => $correctAnswers
+                ]);
+
+                // Filter out any empty questions
+                $validQuestions = array_filter($questions, function($question) {
+                    return !empty(trim($question));
+                });
+
+                // Only include answers and correct answers for valid questions
+                $validIndexes = array_keys($validQuestions);
+                $validAnswers = array_intersect_key($answers, array_flip($validIndexes));
+                $validCorrectAnswers = array_intersect_key($correctAnswers, array_flip($validIndexes));
+
+                // Reindex arrays to ensure sequential keys
+                $validQuestions = array_values($validQuestions);
+                
+                // Process answers to ensure exactly 4 options per question
+                $processedAnswers = [];
+                foreach ($validAnswers as $questionAnswers) {
+                    // Filter out empty answers and take only the first 4
+                    $filteredAnswers = array_filter($questionAnswers, function($answer) {
+                        return !empty(trim($answer));
+                    });
+                    $processedAnswers[] = array_slice(array_values($filteredAnswers), 0, 4);
+                }
+
+                $validCorrectAnswers = array_map('intval', array_values($validCorrectAnswers));
+
+                // Log the processed quiz data
+                \Illuminate\Support\Facades\Log::info('Processed quiz data:', [
+                    'questions' => $validQuestions,
+                    'answers' => $processedAnswers,
+                    'correct_answers' => $validCorrectAnswers
+                ]);
+
+                return [
+                    'type' => 'quiz',
+                    'data' => [
+                        'questions' => $validQuestions,
+                        'answers' => $processedAnswers,
+                        'correct_answers' => $validCorrectAnswers
+                    ]
                 ];
-                break;
         }
 
         return [
             'type' => $type,
-            'content' => json_encode($content)
+            'data' => []
         ];
     }
 
@@ -101,11 +157,14 @@ class AdminCourseController extends Controller
             // Handle sections if they exist
             if ($request->has('sections')) {
                 foreach ($request->sections as $index => $sectionData) {
+                    \Illuminate\Support\Facades\Log::info('Processing section:', ['index' => $index, 'data' => $sectionData]);
+                    
                     $content = $this->handleSectionContent($sectionData, $request, $index);
+                    \Illuminate\Support\Facades\Log::info('Section content processed:', ['content' => $content]);
 
                     $course->sections()->create([
                         'title' => $sectionData['title'],
-                        'content' => json_encode($content), // Convert array to JSON string
+                        'content' => json_encode($content),
                         'order' => $index + 1
                     ]);
                 }
@@ -271,11 +330,34 @@ class AdminCourseController extends Controller
 
     public function dashboard()
     {
+        // Get recent courses
+        $recentCourses = Course::with('user')
+            ->latest()
+            ->take(5)
+            ->get();
+
+        // Get recent users
+        $recentUsers = \App\Models\User::latest()
+            ->take(5)
+            ->get();
+
+        // Calculate total revenue (from course purchases)
+        $totalRevenue = \App\Models\Course::sum('price');
+
+        // Get statistics
+        $stats = [
+            'total_courses' => Course::count(),
+            'total_users' => \App\Models\User::count(),
+            'total_revenue' => $totalRevenue,
+            'recent_courses' => $recentCourses,
+            'recent_users' => $recentUsers
+        ];
+
+        // Get all courses for the courses table
         $courses = Course::withCount(['purchases', 'allocations'])
             ->latest()
             ->paginate(10);
 
-        return view('admin.courses.dashboard', compact('courses'));
+        return view('admin.dashboard', compact('courses', 'stats'));
     }
 }
-

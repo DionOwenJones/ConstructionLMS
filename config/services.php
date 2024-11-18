@@ -14,6 +14,13 @@ return [
     |
     */
 
+    'mailgun' => [
+        'domain' => env('MAILGUN_DOMAIN'),
+        'secret' => env('MAILGUN_SECRET'),
+        'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
+        'scheme' => 'https',
+    ],
+
     'postmark' => [
         'token' => env('POSTMARK_TOKEN'),
     ],
@@ -33,6 +40,33 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook' => [
+            'secret' => env('STRIPE_WEBHOOK_SECRET'),
+            'tolerance' => env('STRIPE_WEBHOOK_TOLERANCE', 300),
+        ],
+    ],
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_CALLBACK_URL'),
+        'oauth' => [
+            'scopes' => [
+                'https://www.googleapis.com/auth/userinfo.email',
+                'https://www.googleapis.com/auth/userinfo.profile',
+            ],
+        ],
+    ],
+
+    'github' => [
+        'client_id' => env('GITHUB_CLIENT_ID'),
+        'client_secret' => env('GITHUB_CLIENT_SECRET'),
+        'redirect' => env('GITHUB_CALLBACK_URL'),
     ],
 
 ];

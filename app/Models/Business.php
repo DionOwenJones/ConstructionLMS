@@ -11,12 +11,16 @@ class Business extends Model
 {
     protected $fillable = [
         'company_name',
-        'user_id'
+        'owner_id',
+        'address',
+        'phone',
+        'website',
+        'description'
     ];
 
-    public function user(): BelongsTo
+    public function owner(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'owner_id');
     }
 
     // Relationship to employees
@@ -44,7 +48,6 @@ class Business extends Model
     public function courses(): BelongsToMany
     {
         return $this->belongsToMany(Course::class, 'business_course_purchases')
-            ->withTimestamps()
-            ->withPivot(['quantity', 'price']);
+            ->withTimestamps();
     }
 }

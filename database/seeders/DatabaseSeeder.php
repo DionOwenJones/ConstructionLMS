@@ -10,40 +10,100 @@ class DatabaseSeeder extends Seeder
 {
     public function run()
     {
-        // Create Admin Account
-        User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
-            'role' => 'admin',
-            'email_verified_at' => now()
-        ]);
+        // Create Admin Accounts
+        $adminUsers = [
+            [
+                'name' => 'Super Admin',
+                'email' => 'admin@admin.com',
+                'password' => bcrypt('password'),
+                'role' => 'admin',
+            ],
+            [
+                'name' => 'Course Admin',
+                'email' => 'course.admin@admin.com',
+                'password' => bcrypt('password'),
+                'role' => 'admin',
+            ]
+        ];
 
-        // Create Business Account & Their Business
-        $businessOwner = User::create([
-            'name' => 'Business Owner',
-            'email' => 'business@example.com',
-            'password' => bcrypt('password'),
-            'role' => 'business',
-            'email_verified_at' => now()
-        ]);
+        foreach ($adminUsers as $admin) {
+            User::create(array_merge($admin, [
+                'email_verified_at' => now()
+            ]));
+        }
 
-        // Create the Business Entity
-        Business::create([
-            'company_name' => 'Construction Co Ltd',
-            'user_id' => $businessOwner->id
-        ]);
+        // Create Business Accounts
+        $businessUsers = [
+            [
+                'name' => 'Construction Corp',
+                'email' => 'business@construction.com',
+                'company' => 'Construction Corporation Ltd'
+            ],
+            [
+                'name' => 'BuildRight Solutions',
+                'email' => 'business@buildright.com',
+                'company' => 'BuildRight Solutions Inc'
+            ],
+            [
+                'name' => 'Safety First Co',
+                'email' => 'business@safetyfirst.com',
+                'company' => 'Safety First Construction'
+            ]
+        ];
 
-        // Create Regular User Account
-        User::create([
-            'name' => 'Regular User',
-            'email' => 'user@example.com',
-            'password' => bcrypt('password'),
-            'role' => 'user',
-            'email_verified_at' => now()
-        ]);
+        foreach ($businessUsers as $business) {
+            // Create business owner first
+            $businessOwner = User::create([
+                'name' => $business['name'],
+                'email' => $business['email'],
+                'password' => bcrypt('password'),
+                'role' => 'business',
+                'email_verified_at' => now()
+            ]);
+
+            // Then create business and link to owner
+            Business::create([
+                'company_name' => $business['company'],
+                'owner_id' => $businessOwner->id
+            ]);
+        }
+
+        // Create Regular User Accounts
+        $regularUsers = [
+            [
+                'name' => 'John Worker',
+                'email' => 'john@example.com',
+            ],
+            [
+                'name' => 'Sarah Builder',
+                'email' => 'sarah@example.com',
+            ],
+            [
+                'name' => 'Mike Constructor',
+                'email' => 'mike@example.com',
+            ],
+            [
+                'name' => 'Test User',
+                'email' => 'test@test.com',
+            ]
+        ];
+
+        foreach ($regularUsers as $user) {
+            User::create(array_merge($user, [
+                'password' => bcrypt('password'),
+                'role' => 'user',
+                'email_verified_at' => now()
+            ]));
+        }
 
         // Run the Course Seeder
         $this->call(CourseSeeder::class);
+
+        // Output seeding completion message
+        $this->command->info('Database seeded with:');
+        $this->command->info('- ' . User::where('role', 'admin')->count() . ' admin users');
+        $this->command->info('- ' . User::where('role', 'business')->count() . ' business users');
+        $this->command->info('- ' . User::where('role', 'user')->count() . ' regular users');
+        $this->command->info('- ' . Business::count() . ' businesses');
     }
 }

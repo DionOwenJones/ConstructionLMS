@@ -8,49 +8,57 @@ use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\View;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class CourseController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth')->except(['index', 'preview']);
+    }
+
     public function index()
     {
-        // Get all published courses
+        // Get all published courses with sections count
         $courses = Course::where('status', 'published')
-            ->with(['user', 'sections'])
+            ->withCount('sections')
+            ->with(['user'])
             ->latest()
             ->paginate(12);
 
-        // If user is authenticated, get their enrolled courses
-        $enrolledCourseIds = [];
+        // If user is authenticated, get their purchased courses
+        $purchasedCourseIds = [];
         if (Auth::check()) {
-            $enrolledCourseIds = DB::table('course_user')
+            $purchasedCourseIds = DB::table('course_purchases')
                 ->where('user_id', Auth::id())
+                ->where('status', 'completed')
                 ->pluck('course_id')
                 ->toArray();
         }
 
-        return view('courses.index', compact('courses', 'enrolledCourseIds'));
+        return view('courses.index', compact('courses', 'purchasedCourseIds'));
     }
 
-    public function preview($id)
+    public function preview(Course $course)
     {
-        // Get course by ID
-        $course = Course::findOrFail($id);
-
         // Check if course is published
         if ($course->status !== 'published') {
             abort(404);
         }
 
-        // If user is enrolled, redirect to course view
-        if (Auth::check()) {
-            $enrollment = DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->first();
-
-            if ($enrollment) {
-                return redirect()->route('courses.view', ['id' => $course->id]);
+        // If user has purchased, redirect to course view
+        if (Auth::check() && $course->isPurchasedBy(Auth::user())) {
+            $firstSection = $course->sections()->orderBy('order')->first();
+            if ($firstSection) {
+                return redirect()->route('courses.show.section', [
+                    'course' => $course->id,
+                    'section' => $firstSection->id
+                ]);
             }
+            // If no sections, show empty course view
+            return redirect()->route('courses.show', ['course' => $course->id]);
         }
 
         // Get first 3 sections for preview
@@ -60,359 +68,226 @@ class CourseController extends Controller
             ->take(3)
             ->get();
 
-        // Load the total sections count for the course
-        $course->loadCount('sections');
-
         return view('courses.preview', compact('course', 'previewSections'));
     }
 
-    public function view($id)
+    public function show(Course $course, $section = null)
     {
-        // Get course by ID
-        $course = Course::findOrFail($id);
-        $userId = Auth::id();
-
-        $enrollment = DB::table('course_user')
-            ->where('user_id', $userId)
-            ->where('course_id', $course->id)
-            ->first();
-
-        // If not enrolled, redirect to course preview
-        if (!$enrollment) {
-            return redirect()->route('courses.preview', ['id' => $course->id]);
+        // Check if user has purchased the course
+        if (!$course->isPurchasedBy(Auth::user())) {
+            return redirect()->route('courses.preview', $course)
+                ->with('error', 'You need to purchase this course to access its content.');
         }
 
-        $sections = CourseSection::where('course_id', $course->id)
+        // Get course sections and current progress
+        $sections = $course->sections()
             ->orderBy('order')
             ->get();
 
-        // Get the first section ID if no current section is set
-        $currentSectionId = $enrollment->current_section_id ?? $sections->first()->id ?? null;
+        // Load the course user relationship with completed status
+        $courseUser = $course->users()
+            ->where('user_id', Auth::id())
+            ->first();
 
-        // Create progress object with default values
-        $progress = (object)[
-            'completed_sections' => json_decode($enrollment->completed_sections ?? '[]'),
-            'completed_sections_count' => $enrollment->completed_sections_count ?? 0,
-            'current_section_id' => $currentSectionId
-        ];
+        if (!$courseUser) {
+            return redirect()->route('courses.preview', $course)
+                ->with('error', 'Course enrollment not found.');
+        }
 
-        return view('courses.view', compact('course', 'sections', 'progress'));
-    }
+        // Handle case where course has no sections
+        if ($sections->isEmpty()) {
+            return view('courses.show', [
+                'course' => $course,
+                'sections' => collect(),
+                'currentSection' => null,
+                'progress' => 0,
+                'noSections' => true,
+                'previousSection' => null,
+                'nextSection' => null,
+                'completedSections' => [],
+                'isCompleted' => $courseUser->pivot->completed ?? false
+            ]);
+        }
 
-    public function enroll($id)
-    {
-        try {
-            DB::beginTransaction();
-
-            // Get course by ID
-            $course = Course::findOrFail($id);
-
-            // Check if user is already enrolled
-            $enrollment = DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->first();
-
-            if ($enrollment) {
-                DB::rollBack();
-                return redirect()->route('courses.view', ['id' => $course->id]);
+        // If no section is specified, get the current section or first section
+        if (!$section) {
+            $currentSection = $course->getCurrentSectionForUser(Auth::user()) ?? $sections->first();
+        } else {
+            // Find the section by ID
+            $currentSection = $sections->firstWhere('id', $section);
+            if (!$currentSection) {
+                abort(404);
             }
 
-            // Enroll user in course
-            DB::table('course_user')->insert([
-                'user_id' => Auth::id(),
-                'course_id' => $course->id,
-                'enrolled_at' => now(),
-                'completed' => false,
-                'completed_sections' => '[]',
-                'completed_sections_count' => 0,
-                'created_at' => now(),
-                'updated_at' => now()
+            // Update user's current section
+            $course->users()->updateExistingPivot(Auth::id(), [
+                'current_section_id' => $currentSection->id,
+                'last_accessed_at' => now()
+            ]);
+        }
+
+        // Get completed sections for the user
+        $completedSections = $course->getCompletedSectionsForUser(Auth::user());
+        
+        // Calculate progress
+        $totalSections = $sections->count();
+        $completedCount = count($completedSections);
+        $progress = $totalSections > 0 ? round(($completedCount / $totalSections) * 100) : 0;
+
+        // Get previous and next sections
+        $currentIndex = $sections->search(function($item) use ($currentSection) {
+            return $item->id === $currentSection->id;
+        });
+
+        $previousSection = $currentIndex > 0 ? $sections[$currentIndex - 1] : null;
+        $nextSection = $currentIndex < $sections->count() - 1 ? $sections[$currentIndex + 1] : null;
+
+        return view('courses.show', [
+            'course' => $course,
+            'sections' => $sections,
+            'currentSection' => $currentSection,
+            'completedSections' => $completedSections,
+            'progress' => $progress,
+            'previousSection' => $previousSection,
+            'nextSection' => $nextSection,
+            'isCompleted' => $courseUser->pivot->completed ?? false
+        ]);
+    }
+
+    public function completeSection(Request $request, Course $course, CourseSection $section)
+    {
+        try {
+            // Verify the section belongs to this course
+            if ($section->course_id !== $course->id) {
+                throw new \Exception('Invalid section for this course.');
+            }
+
+            // Get user's completed sections
+            $completedSections = $course->getCompletedSectionsForUser(Auth::user());
+            
+            // Add current section if not already completed
+            if (!in_array($section->id, $completedSections)) {
+                $completedSections[] = $section->id;
+            }
+
+            // Update the pivot table
+            $course->users()->updateExistingPivot(Auth::id(), [
+                'completed_sections' => json_encode($completedSections),
+                'completed_sections_count' => count($completedSections)
             ]);
 
-            DB::commit();
+            // Calculate progress
+            $totalSections = $course->sections()->count();
+            $progress = $totalSections > 0 ? round((count($completedSections) / $totalSections) * 100) : 0;
 
-            return redirect()->route('courses.view', ['id' => $course->id])
-                ->with('success', 'Successfully enrolled in course!');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error enrolling in course: ' . $e->getMessage());
-            return back()->with('error', 'Error enrolling in course. Please try again.');
-        }
-    }
-
-    public function completeSection($id, $sectionId)
-    {
-        try {
-            DB::beginTransaction();
-
-            // Get course and section
-            $course = Course::findOrFail($id);
-            $section = CourseSection::findOrFail($sectionId);
-
-            // Get enrollment
-            $enrollment = DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->first();
-
-            if (!$enrollment) {
-                DB::rollBack();
-                return back()->with('error', 'Not enrolled in this course.');
-            }
-
-            // Get completed sections array
-            $completedSections = json_decode($enrollment->completed_sections ?? '[]', true);
-
-            // Add section to completed sections if not already completed
-            if (!in_array($sectionId, $completedSections)) {
-                $completedSections[] = $sectionId;
-                $completedSectionsCount = count($completedSections);
-
-                // Update enrollment
-                DB::table('course_user')
-                    ->where('user_id', Auth::id())
-                    ->where('course_id', $course->id)
-                    ->update([
-                        'completed_sections' => json_encode($completedSections),
-                        'completed_sections_count' => $completedSectionsCount,
-                        'current_section_id' => $sectionId
-                    ]);
-
-                // Check if all sections are completed
-                $totalSections = $course->sections()->count();
-                if ($completedSectionsCount >= $totalSections) {
-                    DB::table('course_user')
-                        ->where('user_id', Auth::id())
-                        ->where('course_id', $course->id)
-                        ->update([
-                            'completed' => true,
-                            'completed_at' => now()
-                        ]);
-                }
-            }
-
-            DB::commit();
-
-            return back()->with('success', 'Section completed!');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error completing section: ' . $e->getMessage());
-            return back()->with('error', 'Error completing section. Please try again.');
-        }
-    }
-
-    public function updateCurrentSection($id, $sectionId)
-    {
-        try {
-            DB::beginTransaction();
-
-            // Get course and section
-            $course = Course::findOrFail($id);
-            $section = CourseSection::findOrFail($sectionId);
-
-            // Update current section
-            DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->update([
-                    'current_section_id' => $sectionId
-                ]);
-
-            DB::commit();
-
-            return back()->with('success', 'Current section updated.');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error updating current section: ' . $e->getMessage());
-            return back()->with('error', 'Error updating current section. Please try again.');
-        }
-    }
-
-    public function nextSection($id, $sectionId)
-    {
-        try {
-            DB::beginTransaction();
-
-            // Get course and current section
-            $course = Course::findOrFail($id);
-            $currentSection = CourseSection::findOrFail($sectionId);
-
-            // Get next section
-            $nextSection = CourseSection::where('course_id', $course->id)
-                ->where('order', '>', $currentSection->order)
+            // Get next section if available
+            $nextSection = $course->sections()
+                ->where('order', '>', $section->order)
                 ->orderBy('order')
                 ->first();
 
-            if (!$nextSection) {
-                DB::rollBack();
-                return back()->with('error', 'No next section available.');
-            }
-
-            // Update current section
-            DB::table('course_user')
+            // Check if course is already marked as completed
+            $isCompleted = $course->users()
                 ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->update([
-                    'current_section_id' => $nextSection->id
-                ]);
-
-            DB::commit();
-
-            return back()->with('success', 'Moved to next section.');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error moving to next section: ' . $e->getMessage());
-            return back()->with('error', 'Error moving to next section. Please try again.');
-        }
-    }
-
-    public function previousSection($id, $sectionId)
-    {
-        try {
-            DB::beginTransaction();
-
-            // Get course and current section
-            $course = Course::findOrFail($id);
-            $currentSection = CourseSection::findOrFail($sectionId);
-
-            // Get previous section
-            $previousSection = CourseSection::where('course_id', $course->id)
-                ->where('order', '<', $currentSection->order)
-                ->orderByDesc('order')
-                ->first();
-
-            if (!$previousSection) {
-                DB::rollBack();
-                return back()->with('error', 'No previous section available.');
-            }
-
-            // Update current section
-            DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->update([
-                    'current_section_id' => $previousSection->id
-                ]);
-
-            DB::commit();
-
-            return back()->with('success', 'Moved to previous section.');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error moving to previous section: ' . $e->getMessage());
-            return back()->with('error', 'Error moving to previous section. Please try again.');
-        }
-    }
-
-    public function showSection($sectionId)
-    {
-        try {
-            $section = CourseSection::findOrFail($sectionId);
-            $course = $section->course;
-
-            // Check if user is enrolled
-            $enrollment = DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->first();
-
-            if (!$enrollment) {
-                return response()->json(['error' => 'Not enrolled in this course.'], 403);
-            }
-
-            // Update current section
-            DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->update([
-                    'current_section_id' => $sectionId
-                ]);
+                ->first()
+                ->pivot
+                ->completed ?? false;
 
             return response()->json([
-                'section' => $section,
-                'content' => json_decode($section->content)
+                'success' => true,
+                'progress' => $progress,
+                'completed' => $isCompleted,
+                'nextSection' => $nextSection ? route('courses.show.section', ['course' => $course->id, 'section' => $nextSection->id]) : null
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error completing section: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'course_id' => $course->id,
+                'section_id' => $section->id
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to mark section as completed.'
+            ], 500);
+        }
+    }
+
+    public function completeCourse(Request $request, Course $course)
+    {
+        try {
+            // Verify all sections are completed
+            $completedSections = $course->getCompletedSectionsForUser(Auth::user());
+            $totalSections = $course->sections()->count();
+            
+            if (count($completedSections) < $totalSections) {
+                throw new \Exception('You must complete all sections before completing the course.');
+            }
+
+            // Update completion status
+            $course->users()->updateExistingPivot(Auth::id(), [
+                'completed' => true,
+                'completed_at' => now()
+            ]);
+
+            // Return success response
+            return response()->json([
+                'success' => true,
+                'message' => 'Course completed successfully! You can now download your certificate.',
+                'certificateUrl' => route('courses.certificate', ['course' => $course])
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error showing section: ' . $e->getMessage());
-            return response()->json(['error' => 'Error showing section.'], 500);
+            Log::error('Error completing course: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'course_id' => $course->id
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
-    public function markCurrentSection($sectionId)
+    public function certificate(Request $request, Course $course)
     {
         try {
-            $section = CourseSection::findOrFail($sectionId);
-            $course = $section->course;
-
-            // Update current section
-            DB::table('course_user')
+            // Check if user has purchased and completed the course
+            $courseUser = $course->users()
                 ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->update([
-                    'current_section_id' => $sectionId
-                ]);
-
-            return response()->json(['success' => true]);
-
-        } catch (\Exception $e) {
-            Log::error('Error marking current section: ' . $e->getMessage());
-            return response()->json(['error' => 'Error marking current section.'], 500);
-        }
-    }
-
-    public function completeCourse($id)
-    {
-        try {
-            DB::beginTransaction();
-
-            // Get course
-            $course = Course::findOrFail($id);
-
-            // Get enrollment
-            $enrollment = DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
                 ->first();
 
-            if (!$enrollment) {
-                DB::rollBack();
-                return back()->with('error', 'Not enrolled in this course.');
+            if (!$courseUser) {
+                return back()->with('error', 'You have not purchased this course.');
             }
 
-            // Verify all sections are completed
-            $sections = CourseSection::where('course_id', $course->id)->count();
-            $completedSections = count(json_decode($enrollment->completed_sections ?? '[]'));
-
-            if ($completedSections < $sections) {
-                DB::rollBack();
-                return back()->with('error', 'Please complete all sections before completing the course.');
+            if (!$courseUser->pivot->completed) {
+                return back()->with('error', 'You have not completed this course yet.');
             }
 
-            // Update enrollment to mark course as completed
-            DB::table('course_user')
-                ->where('user_id', Auth::id())
-                ->where('course_id', $course->id)
-                ->update([
-                    'completed' => true,
-                    'completed_at' => now()
-                ]);
+            // Get completion date
+            $completedAt = $courseUser->pivot->completed_at;
 
-            DB::commit();
+            // Generate certificate view
+            $pdf = Pdf::loadView('certificates.course', [
+                'course' => $course,
+                'user' => Auth::user(),
+                'completedAt' => $completedAt
+            ]);
 
-            return redirect()->route('dashboard')
-                ->with('success', 'Congratulations! You have completed the course.');
+            // Set paper size and orientation
+            $pdf->setPaper('a4', 'landscape');
 
+            // Return the PDF for download
+            return $pdf->download("certificate-{$course->slug}.pdf");
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error completing course: ' . $e->getMessage());
-            return back()->with('error', 'Error completing course. Please try again.');
+            Log::error('Error generating certificate: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'course_id' => $course->id
+            ]);
+
+            return back()->with('error', 'Failed to generate certificate. Please try again later.');
         }
     }
 }

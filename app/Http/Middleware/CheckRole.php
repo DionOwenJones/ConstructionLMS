@@ -16,26 +16,34 @@ class CheckRole
      * @param  string  $role
      * @return mixed
      */
-    public function handle(Request $request, Closure $next, string $role)
+    public function handle(Request $request, Closure $next, $role)
     {
         if (!Auth::check()) {
             return redirect('login');
         }
 
-        $user = $request->user();
-        $roles = explode('|', $role);
-
-        // Special handling for 'employee' role
-        if (in_array('employee', $roles)) {
-            if (!$user->isEmployee()) {
-                abort(403, 'This section is only accessible to business employees.');
+        $user = Auth::user();
+        
+        // If checking for business role
+        if ($role === 'business') {
+            if (!$user->hasRole('business')) {
+                return redirect()->route('dashboard')
+                    ->with('error', 'Access denied. Business account required.');
             }
-            return $next($request);
         }
-
-        // Check if user has any of the specified roles
-        if (!$user->hasRole($roles)) {
-            abort(403, 'Unauthorized action. You do not have the required role.');
+        // If checking for user role
+        else if ($role === 'user') {
+            if ($user->hasRole('business')) {
+                return redirect()->route('business.dashboard');
+            }
+            if ($user->hasRole('admin')) {
+                return redirect()->route('admin.dashboard');
+            }
+        }
+        // For other roles
+        else if (!$user->hasRole($role)) {
+            return redirect()->route('dashboard')
+                ->with('error', 'You do not have permission to access this area.');
         }
 
         return $next($request);

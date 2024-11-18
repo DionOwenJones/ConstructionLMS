@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </button>
                     <button type="button" class="content-type-btn flex flex-col items-center p-4 border rounded-lg hover:border-orange-500" data-type="video">
                         <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A2 2 0 0121 8.618v6.764a2 2 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                         </svg>
                         <span class="mt-2 text-sm font-medium">Video</span>
                     </button>
@@ -83,82 +83,198 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         button.classList.add('border-orange-500', 'bg-orange-50');
 
-        // Generate content based on type
-        switch(type) {
+        // Clear existing content
+        contentArea.innerHTML = '';
+
+        switch (type) {
             case 'text':
                 contentArea.innerHTML = `
-                    <div class="space-y-4">
+                    <div class="space-y-2">
                         <input type="hidden" name="sections[${sectionIndex}][type]" value="text">
-                        <textarea name="sections[${sectionIndex}][content]" rows="4"
+                        <textarea name="sections[${sectionIndex}][content]" rows="6" required
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
                                 placeholder="Enter your content here..."></textarea>
-                    </div>
-                `;
-                break;
-
-            case 'image':
-                contentArea.innerHTML = `
-                    <div class="space-y-4">
-                        <input type="hidden" name="sections[${sectionIndex}][type]" value="image">
-                        <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
-                            <div class="space-y-1 text-center">
-                                <div id="image-preview-${sectionIndex}" class="mb-4"></div>
-                                <div class="flex text-sm text-gray-600">
-                                    <label class="relative cursor-pointer bg-white rounded-md font-medium text-orange-600 hover:text-orange-500">
-                                        <span>Upload a file</span>
-                                        <input type="file" name="sections[${sectionIndex}][image]" class="sr-only" accept="image/*" onchange="previewImage(this, ${sectionIndex})">
-                                    </label>
-                                </div>
-                                <p class="text-xs text-gray-500">PNG, JPG up to 10MB</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
+                    </div>`;
                 break;
 
             case 'video':
                 contentArea.innerHTML = `
                     <div class="space-y-4">
                         <input type="hidden" name="sections[${sectionIndex}][type]" value="video">
-                        <input type="url" name="sections[${sectionIndex}][video_url]"
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
-                               placeholder="Enter YouTube or Vimeo URL">
-                        <p class="text-xs text-gray-500">Supported: YouTube and Vimeo URLs</p>
-                    </div>
-                `;
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">YouTube Video URL</label>
+                            <input type="url" name="sections[${sectionIndex}][content]" required
+                                   class="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                                   placeholder="https://www.youtube.com/watch?v=..."
+                                   onchange="previewYouTubeVideo(this, ${sectionIndex})">
+                            <p class="text-sm text-gray-500">Paste a YouTube video URL (e.g., https://www.youtube.com/watch?v=xxxxx)</p>
+                        </div>
+                        <div id="video-preview-${sectionIndex}" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Video Preview</label>
+                            <div class="max-w-4xl mx-auto">
+                                <div class="aspect-w-16 aspect-h-9 bg-gray-100 rounded-lg">
+                                    <div id="video-player-${sectionIndex}" class="w-full h-full"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
                 break;
 
             case 'quiz':
                 contentArea.innerHTML = `
-                    <div class="space-y-4">
-                        <input type="hidden" name="sections[${sectionIndex}][type]" value="quiz">
-                        <div id="quiz-${sectionIndex}" class="space-y-4">
-                            <div class="quiz-question bg-gray-50 p-4 rounded-lg">
-                                <input type="text" name="sections[${sectionIndex}][quiz][questions][]"
-                                       class="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 mb-4"
-                                       placeholder="Enter your question">
-                                <div class="answer-options space-y-2">
-                                    <div class="flex items-center space-x-2">
-                                        <input type="radio" name="sections[${sectionIndex}][quiz][correct][]" value="0">
-                                        <input type="text" name="sections[${sectionIndex}][quiz][answers][]"
-                                               class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
-                                               placeholder="Answer option">
-                                    </div>
-                                </div>
-                                <button type="button" onclick="addAnswerOption(${sectionIndex})"
-                                        class="mt-2 text-sm text-orange-600 hover:text-orange-700">
-                                    + Add Answer Option
-                                </button>
-                            </div>
+                    <input type="hidden" name="sections[${sectionIndex}][type]" value="quiz">
+                    <div class="bg-white rounded-lg p-6 space-y-6">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-medium text-gray-900">Quiz Questions</h3>
+                            <button type="button" 
+                                    onclick="addQuizQuestion(${sectionIndex})"
+                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                                Add Question
+                            </button>
                         </div>
-                        <button type="button" onclick="addQuestion(${sectionIndex})"
-                                class="text-sm text-orange-600 hover:text-orange-700">
-                            + Add Another Question
-                        </button>
-                    </div>
-                `;
+                        <div id="quiz-questions-${sectionIndex}" class="space-y-6">
+                            <!-- Questions will be added here -->
+                        </div>
+                    </div>`;
+                
+                // Add initial question
+                addQuizQuestion(sectionIndex);
+                break;
+
+            case 'image':
+                contentArea.innerHTML = `
+                    <div class="space-y-2">
+                        <input type="hidden" name="sections[${sectionIndex}][type]" value="image">
+                        <label class="block text-sm font-medium text-gray-700">Upload Image</label>
+                        <input type="file" name="sections[${sectionIndex}][content]" accept="image/*" required
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                    </div>`;
                 break;
         }
+    }
+
+    // YouTube URL validation and preview
+    window.previewYouTubeVideo = function(input, sectionIndex) {
+        const url = input.value;
+        const videoId = extractYouTubeVideoId(url);
+        const previewDiv = document.getElementById(`video-preview-${sectionIndex}`);
+        const playerDiv = document.getElementById(`video-player-${sectionIndex}`);
+
+        if (videoId) {
+            previewDiv.classList.remove('hidden');
+            playerDiv.innerHTML = `
+                <div class="w-full max-w-5xl mx-auto">
+                    <div class="relative" style="padding-bottom: 56.25%;">
+                        <iframe 
+                            src="https://www.youtube.com/embed/${videoId}"
+                            class="absolute top-0 left-0 w-full h-full rounded-lg shadow-lg"
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen>
+                        </iframe>
+                    </div>
+                </div>`;
+        } else {
+            previewDiv.classList.add('hidden');
+            playerDiv.innerHTML = '';
+            input.setCustomValidity('Please enter a valid YouTube URL');
+        }
+    };
+
+    function extractYouTubeVideoId(url) {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    // Quiz functionality
+    window.addQuizQuestion = function(sectionIndex, questionIndex = null) {
+        const questionsContainer = document.getElementById(`quiz-questions-${sectionIndex}`);
+        const newQuestionIndex = questionIndex ?? questionsContainer.children.length;
+        
+        const questionHTML = `
+            <div class="quiz-question bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                <div class="flex justify-between items-start">
+                    <h4 class="text-lg font-medium text-gray-900">Question ${newQuestionIndex + 1}</h4>
+                    <button type="button" onclick="removeQuizQuestion(this)" class="text-gray-400 hover:text-red-500">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Question Text</label>
+                        <input type="text" 
+                               name="sections[${sectionIndex}][quiz][questions][]" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                               placeholder="Enter your question here"
+                               required>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-gray-700">Answer Options</label>
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                                <input type="text" 
+                                       name="sections[${sectionIndex}][quiz][answers][${newQuestionIndex}][]" 
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                                       placeholder="Option 1"
+                                       required>
+                                <input type="radio" 
+                                       name="sections[${sectionIndex}][quiz][correct][${newQuestionIndex}]" 
+                                       value="0"
+                                       required>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input type="text" 
+                                       name="sections[${sectionIndex}][quiz][answers][${newQuestionIndex}][]" 
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                                       placeholder="Option 2"
+                                       required>
+                                <input type="radio" 
+                                       name="sections[${sectionIndex}][quiz][correct][${newQuestionIndex}]" 
+                                       value="1"
+                                       required>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input type="text" 
+                                       name="sections[${sectionIndex}][quiz][answers][${newQuestionIndex}][]" 
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                                       placeholder="Option 3"
+                                       required>
+                                <input type="radio" 
+                                       name="sections[${sectionIndex}][quiz][correct][${newQuestionIndex}]" 
+                                       value="2"
+                                       required>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input type="text" 
+                                       name="sections[${sectionIndex}][quiz][answers][${newQuestionIndex}][]" 
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                                       placeholder="Option 4"
+                                       required>
+                                <input type="radio" 
+                                       name="sections[${sectionIndex}][quiz][correct][${newQuestionIndex}]" 
+                                       value="3"
+                                       required>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-500">Select the radio button next to the correct answer.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = questionHTML;
+        questionsContainer.appendChild(tempDiv.firstElementChild);
+    }
+
+    function removeQuizQuestion(button) {
+        const questionDiv = button.closest('.quiz-question');
+        questionDiv.remove();
     }
 
     // Initialize the add section button
@@ -166,4 +282,3 @@ document.addEventListener('DOMContentLoaded', function() {
         addSectionButton.addEventListener('click', createSection);
     }
 });
-

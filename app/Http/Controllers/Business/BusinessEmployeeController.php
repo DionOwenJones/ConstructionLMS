@@ -3,25 +3,33 @@
 namespace App\Http\Controllers\Business;
 
 use App\Http\Controllers\Controller;
+use App\Models\Business;
+use App\Models\BusinessCourseAllocation;
+use App\Models\BusinessCoursePurchase;
 use App\Models\BusinessEmployee;
+use App\Models\Course;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use App\Models\User;
-use App\Models\BusinessCoursePurchase;
-use App\Models\BusinessCourseAllocation;
-use App\Models\Course;
 
 class BusinessEmployeeController extends Controller
 {
     public function index()
     {
-        $employees = BusinessEmployee::where('business_id', Auth::user()->business->id)
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
+
+        $employees = BusinessEmployee::where('business_id', $business->id)
             ->with(['user', 'courseAllocations'])
             ->paginate(10);
 
-        $availableCourses = BusinessCoursePurchase::where('business_id', Auth::user()->business->id)
+        $availableCourses = BusinessCoursePurchase::where('business_id', $business->id)
             ->withCount('allocations')
             ->having('seats_purchased', '>', 'allocations_count')
             ->with('course')
@@ -39,6 +47,13 @@ class BusinessEmployeeController extends Controller
 
     public function create()
     {
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
+
         return view('business.employees.create');
     }
 
@@ -47,80 +62,119 @@ class BusinessEmployeeController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ], [
+            'password.confirmed' => 'The password confirmation does not match.',
+            'password.min' => 'The password must be at least 8 characters.',
         ]);
 
-        DB::transaction(function () use ($request) {
-            // Create the user first
-            $user = User::create([
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
+
+        DB::transaction(function () use ($request, $business) {
+            $employee = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
+                'role' => 'user'
             ]);
 
-            // Create the business employee record
             BusinessEmployee::create([
-                'business_id' => Auth::user()->business->id,
-                'user_id' => $user->id,
+                'business_id' => $business->id,
+                'user_id' => $employee->id
             ]);
+
+            return $employee;
         });
 
         return redirect()->route('business.employees.index')
-            ->with('success', 'Employee added successfully');
+            ->with('success', 'Team member added successfully.');
     }
 
     public function edit(BusinessEmployee $employee)
     {
-        return view('business.employees.edit', compact('employee'));
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
+
+        // Verify employee belongs to this business
+        if ($employee->business_id !== $business->id) {
+            return redirect()->route('business.employees.index')
+                ->with('error', 'Unauthorized access to employee record.');
+        }
+
+        return view('business.employees.edit', [
+            'employee' => $employee,
+            'business' => $business
+        ]);
     }
 
     public function update(Request $request, BusinessEmployee $employee)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:business_employees,email,' . $employee->id,
-            'employee_id' => 'nullable|string|max:255'
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
+
+        // Verify employee belongs to this business
+        if ($employee->business_id !== $business->id) {
+            return redirect()->route('business.employees.index')
+                ->with('error', 'Unauthorized access to employee record.');
+        }
+
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $employee->user_id],
         ]);
 
-        $employee->update($validated);
+        $employee->user->update([
+            'name' => $request->name,
+            'email' => $request->email,
+        ]);
+
+        if ($request->filled('password')) {
+            $request->validate([
+                'password' => ['required', 'string', 'min:8', 'confirmed'],
+            ]);
+
+            $employee->user->update([
+                'password' => Hash::make($request->password),
+            ]);
+        }
 
         return redirect()->route('business.employees.index')
-            ->with('success', 'Employee updated successfully');
+            ->with('success', 'Team member updated successfully.');
     }
 
     public function destroy(BusinessEmployee $employee)
     {
-        $employee->delete();
-        return redirect()->route('business.employees.index')
-            ->with('success', 'Employee removed successfully');
-    }
+        $business = Auth::user()->getBusiness();
+        
+        if (!$business || $employee->business_id !== $business->id) {
+            return redirect()->route('business.employees.index')
+                ->with('error', 'Unauthorized access to employee record.');
+        }
 
-    public function allocateCourse(Request $request, User $employee)
-    {
-        $request->validate([
-            'course_id' => ['required', 'exists:courses,id'],
-        ]);
+        DB::transaction(function () use ($employee) {
+            // Remove course allocations
+            BusinessCourseAllocation::where('user_id', $employee->user_id)
+                ->where('business_id', $employee->business_id)
+                ->delete();
 
-        DB::transaction(function() use ($request, $employee) {
-            $course = Course::findOrFail($request->course_id);
-
-            // Create business course allocation
-            BusinessCourseAllocation::create([
-                'business_course_purchase_id' => $request->purchase_id,
-                'business_employee_id' => $employee->id,
-                'allocated_at' => now()
-            ]);
-
-            // Attach course to user's dashboard
-            $employee->user->courses()->attach($request->course_id, [
-                'title' => $course->title,
-                'allocated_at' => now(),
-                'allocated_by_business_id' => $employee->business_id,
-                'completed_sections_count' => 0,
-                'completed' => false
-            ]);
+            // Remove employee record
+            $employee->delete();
         });
 
-        return back()->with('success', 'Course allocated successfully.');
+        return redirect()->route('business.employees.index')
+            ->with('success', 'Team member removed successfully.');
     }
 }
