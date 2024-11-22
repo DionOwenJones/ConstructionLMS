@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\Section;
+use App\Models\ContentBlock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -29,100 +31,74 @@ class AdminCourseController extends Controller
 
     protected function handleSectionContent($section, $request, $index)
     {
-        $type = $request->input("sections.{$index}.type");
-
-        \Illuminate\Support\Facades\Log::info('Processing section content:', [
-            'type' => $type,
-            'data' => $request->input("sections.{$index}")
-        ]);
-
-        switch($type) {
-            case 'text':
-                return [
-                    'type' => 'text',
-                    'data' => [
-                        'text' => $request->input("sections.{$index}.content")
-                    ]
-                ];
-
-            case 'video':
-                return [
-                    'type' => 'video',
-                    'data' => [
-                        'video_url' => $request->input("sections.{$index}.content")
-                    ]
-                ];
-
-            case 'image':
-                if ($request->hasFile("sections.{$index}.content")) {
-                    $path = $request->file("sections.{$index}.content")->store('section-images', 'public');
-                    return [
-                        'type' => 'image',
-                        'data' => [
-                            'image_path' => $path
-                        ]
-                    ];
-                }
-                break;
-
-            case 'quiz':
-                $questions = $request->input("sections.{$index}.quiz.questions", []);
-                $answers = $request->input("sections.{$index}.quiz.answers", []);
-                $correctAnswers = $request->input("sections.{$index}.quiz.correct", []);
-
-                // Log the raw quiz data
-                \Illuminate\Support\Facades\Log::info('Raw quiz data:', [
-                    'questions' => $questions,
-                    'answers' => $answers,
-                    'correct_answers' => $correctAnswers
+        // Get all blocks for this section
+        $blocks = collect($request->input("sections.{$index}.blocks", []))
+            ->map(function ($block, $blockIndex) use ($request, $index) {
+                \Illuminate\Support\Facades\Log::info('Processing block:', [
+                    'block' => $block,
+                    'index' => $blockIndex
                 ]);
 
-                // Filter out any empty questions
-                $validQuestions = array_filter($questions, function($question) {
-                    return !empty(trim($question));
-                });
-
-                // Only include answers and correct answers for valid questions
-                $validIndexes = array_keys($validQuestions);
-                $validAnswers = array_intersect_key($answers, array_flip($validIndexes));
-                $validCorrectAnswers = array_intersect_key($correctAnswers, array_flip($validIndexes));
-
-                // Reindex arrays to ensure sequential keys
-                $validQuestions = array_values($validQuestions);
+                $type = $block['type'] ?? null;
                 
-                // Process answers to ensure exactly 4 options per question
-                $processedAnswers = [];
-                foreach ($validAnswers as $questionAnswers) {
-                    // Filter out empty answers and take only the first 4
-                    $filteredAnswers = array_filter($questionAnswers, function($answer) {
-                        return !empty(trim($answer));
-                    });
-                    $processedAnswers[] = array_slice(array_values($filteredAnswers), 0, 4);
+                if (!$type) {
+                    return null;
                 }
 
-                $validCorrectAnswers = array_map('intval', array_values($validCorrectAnswers));
+                switch($type) {
+                    case 'text':
+                        return [
+                            'type' => 'text',
+                            'text_content' => $block['text_content'] ?? '',
+                            'order' => $blockIndex
+                        ];
 
-                // Log the processed quiz data
-                \Illuminate\Support\Facades\Log::info('Processed quiz data:', [
-                    'questions' => $validQuestions,
-                    'answers' => $processedAnswers,
-                    'correct_answers' => $validCorrectAnswers
-                ]);
+                    case 'video':
+                        return [
+                            'type' => 'video',
+                            'video_url' => $block['video_url'] ?? '',
+                            'video_title' => $block['video_title'] ?? '',
+                            'order' => $blockIndex
+                        ];
 
-                return [
-                    'type' => 'quiz',
-                    'data' => [
-                        'questions' => $validQuestions,
-                        'answers' => $processedAnswers,
-                        'correct_answers' => $validCorrectAnswers
-                    ]
-                ];
+                    case 'image':
+                        if ($request->hasFile("sections.{$index}.blocks.{$blockIndex}.image_path")) {
+                            $path = $request->file("sections.{$index}.blocks.{$blockIndex}.image_path")
+                                ->store('section-images', 'public');
+                            return [
+                                'type' => 'image',
+                                'image_path' => $path,
+                                'order' => $blockIndex
+                            ];
+                        }
+                        break;
+
+                    case 'quiz':
+                        $quizData = json_decode($block['quiz_data'] ?? '[]', true);
+                        return [
+                            'type' => 'quiz',
+                            'quiz_data' => $quizData,
+                            'order' => $blockIndex
+                        ];
+                }
+
+                return null;
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        \Illuminate\Support\Facades\Log::info('Section content processed:', ['blocks' => $blocks]);
+
+        return $blocks;
+    }
+
+    protected function extractYouTubeId($url) {
+        $pattern = '/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i';
+        if (preg_match($pattern, $url, $matches)) {
+            return $matches[1];
         }
-
-        return [
-            'type' => $type,
-            'data' => []
-        ];
+        return null;
     }
 
     public function store(Request $request)
@@ -130,6 +106,7 @@ class AdminCourseController extends Controller
         try {
             DB::beginTransaction();
 
+            // Validate basic course information
             $validated = $request->validate([
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
@@ -143,6 +120,16 @@ class AdminCourseController extends Controller
                 $validated['image'] = $imagePath;
             }
 
+            // Generate a unique slug
+            $baseSlug = Str::slug($validated['title']);
+            $slug = $baseSlug;
+            $counter = 1;
+
+            while (Course::where('slug', $slug)->exists()) {
+                $slug = $baseSlug . '-' . $counter;
+                $counter++;
+            }
+
             // Create course
             $course = Course::create([
                 'title' => $validated['title'],
@@ -151,26 +138,69 @@ class AdminCourseController extends Controller
                 'image' => $validated['image'],
                 'user_id' => Auth::id(),
                 'status' => 'draft',
-                'slug' => Str::slug($validated['title'])
+                'slug' => $slug
             ]);
 
             // Handle sections if they exist
             if ($request->has('sections')) {
-                foreach ($request->sections as $index => $sectionData) {
-                    \Illuminate\Support\Facades\Log::info('Processing section:', ['index' => $index, 'data' => $sectionData]);
-                    
-                    $content = $this->handleSectionContent($sectionData, $request, $index);
-                    \Illuminate\Support\Facades\Log::info('Section content processed:', ['content' => $content]);
+                foreach ($request->input('sections') as $index => $sectionData) {
+                    if (empty($sectionData['title'])) {
+                        continue;
+                    }
 
-                    $course->sections()->create([
-                        'title' => $sectionData['title'],
-                        'content' => json_encode($content),
-                        'order' => $index + 1
+                    \Illuminate\Support\Facades\Log::info('Processing section:', [
+                        'index' => $index,
+                        'data' => $sectionData
                     ]);
+                    
+                    $blocks = $this->handleSectionContent($sectionData, $request, $index);
+                    \Illuminate\Support\Facades\Log::info('Section content processed:', ['blocks' => $blocks]);
+
+                    // Create section
+                    $section = $course->sections()->create([
+                        'title' => $sectionData['title'],
+                        'order' => $index + 1,
+                        'content' => json_encode($blocks)
+                    ]);
+
+                    // Create content blocks
+                    foreach ($blocks as $block) {
+                        $blockData = [
+                            'type' => $block['type'],
+                            'order' => $block['order']
+                        ];
+
+                        // Add specific content based on type
+                        switch ($block['type']) {
+                            case 'text':
+                                $blockData['text_content'] = $block['text_content'] ?? '';
+                                break;
+                            case 'video':
+                                $blockData['video_url'] = $block['video_url'] ?? '';
+                                $blockData['video_title'] = $block['video_title'] ?? '';
+                                break;
+                            case 'image':
+                                $blockData['image_path'] = $block['image_path'] ?? '';
+                                break;
+                            case 'quiz':
+                                $blockData['quiz_data'] = json_encode($block['quiz_data'] ?? []);
+                                break;
+                        }
+
+                        $section->contentBlocks()->create($blockData);
+                    }
                 }
             }
 
             DB::commit();
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Course created successfully!',
+                    'redirect' => route('admin.courses.index')
+                ]);
+            }
 
             return redirect()
                 ->route('admin.courses.index')
@@ -178,7 +208,18 @@ class AdminCourseController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating course: ' . $e->getMessage());
+            Log::error('Error creating course: ' . $e->getMessage(), [
+                'exception' => $e,
+                'request_data' => $request->all()
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error creating course: ' . $e->getMessage()
+                ], 422);
+            }
+
             return back()
                 ->withInput()
                 ->withErrors(['error' => 'Error creating course: ' . $e->getMessage()]);
@@ -187,63 +228,126 @@ class AdminCourseController extends Controller
 
     public function edit(Course $course)
     {
+        $course->load('sections'); // Eager load sections
         return view('admin.courses.edit', compact('course'));
     }
 
     public function update(Request $request, Course $course)
     {
-        $validated = $request->validate([
-            'title' => 'required|max:255',
-            'description' => 'required',
-            'price' => 'required|numeric|min:0',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-            'status' => 'required|in:draft,published'
-        ]);
+        try {
+            DB::beginTransaction();
 
-        $data = [
-            'title' => $validated['title'],
-            'slug' => Str::slug($validated['title']),
-            'description' => $validated['description'],
-            'price' => $validated['price'],
-            'status' => $validated['status'],
-        ];
+            // Validate basic course information
+            $validated = $request->validate([
+                'title' => 'required|string|max:255',
+                'description' => 'required|string',
+                'price' => 'required|numeric|min:0',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            ]);
 
-        // Handle image update if provided
-        if ($request->hasFile('image')) {
-            // Delete old image
-            if ($course->image) {
-                Storage::disk('public')->delete($course->image);
+            // Handle image update if provided
+            if ($request->hasFile('image')) {
+                // Delete old image
+                if ($course->image) {
+                    Storage::disk('public')->delete($course->image);
+                }
+                $validated['image'] = $request->file('image')->store('courses', 'public');
             }
-            $data['image'] = $request->file('image')->store('courses', 'public');
-        }
 
-        // Update published_at timestamp if publishing
-        if ($validated['status'] === 'published' && !$course->published_at) {
-            $data['published_at'] = now();
-        }
+            // Update course
+            $course->update([
+                'title' => $validated['title'],
+                'description' => $validated['description'],
+                'price' => $validated['price'],
+                'image' => $validated['image'] ?? $course->image,
+            ]);
 
-        $course->update($data);
+            // Handle sections if they exist
+            if ($request->has('sections')) {
+                // Delete old sections
+                $course->sections()->delete();
+                
+                foreach ($request->input('sections') as $index => $sectionData) {
+                    if (empty($sectionData['title'])) {
+                        continue;
+                    }
 
-        // Handle content updates if needed
-        if ($request->has('content')) {
-            // Update course sections/content
-            $course->sections()->delete(); // Remove old sections
-            foreach ($request->content as $section) {
-                $course->sections()->create([
-                    'title' => $section['title'],
-                    'description' => $section['description'],
-                    'order' => $section['order'] ?? 0,
+                    \Illuminate\Support\Facades\Log::info('Processing section for update:', [
+                        'index' => $index,
+                        'data' => $sectionData
+                    ]);
+                    
+                    $blocks = $this->handleSectionContent($sectionData, $request, $index);
+                    \Illuminate\Support\Facades\Log::info('Section content processed for update:', ['blocks' => $blocks]);
+
+                    // Create section
+                    $section = $course->sections()->create([
+                        'title' => $sectionData['title'],
+                        'order' => $index + 1,
+                        'content' => json_encode($blocks)
+                    ]);
+
+                    // Create content blocks
+                    foreach ($blocks as $block) {
+                        $blockData = [
+                            'type' => $block['type'],
+                            'order' => $block['order']
+                        ];
+
+                        // Add specific content based on type
+                        switch ($block['type']) {
+                            case 'text':
+                                $blockData['text_content'] = $block['text_content'] ?? '';
+                                break;
+                            case 'video':
+                                $blockData['video_url'] = $block['video_url'] ?? '';
+                                $blockData['video_title'] = $block['video_title'] ?? '';
+                                break;
+                            case 'image':
+                                $blockData['image_path'] = $block['image_path'] ?? '';
+                                break;
+                            case 'quiz':
+                                $blockData['quiz_data'] = json_encode($block['quiz_data'] ?? []);
+                                break;
+                        }
+
+                        $section->contentBlocks()->create($blockData);
+                    }
+                }
+            }
+
+            DB::commit();
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Course updated successfully!',
+                    'redirect' => route('admin.courses.index')
                 ]);
             }
+
+            return redirect()
+                ->route('admin.courses.index')
+                ->with('success', 'Course updated successfully!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error updating course: ' . $e->getMessage(), [
+                'exception' => $e,
+                'request_data' => $request->all()
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error updating course: ' . $e->getMessage()
+                ], 422);
+            }
+
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Error updating course: ' . $e->getMessage()]);
         }
-
-        $message = $validated['status'] === 'published'
-            ? 'Course updated and published!'
-            : 'Course saved as draft.';
-
-        return redirect()
-            ->route('admin.courses.index')
-            ->with('success', $message);
     }
 
     public function destroy(Course $course)
@@ -262,7 +366,10 @@ class AdminCourseController extends Controller
             $query->orderBy('order');
         }]);
 
-        return view('courses.preview', compact('course'));
+        // Get the first 3 sections for preview
+        $previewSections = $course->sections->take(3);
+
+        return view('courses.preview', compact('course', 'previewSections'));
     }
 
     public function publish(Course $course)

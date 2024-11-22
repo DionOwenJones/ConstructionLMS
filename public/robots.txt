@@ -1,2 +1,20 @@
 User-agent: *
-Disallow:
+Allow: /
+Allow: /courses
+Allow: /courses/*
+Allow: /images/*
+Allow: /css/*
+Allow: /js/*
+
+Disallow: /admin/
+Disallow: /business/
+Disallow: /login
+Disallow: /register
+Disallow: /password/*
+Disallow: /email/*
+Disallow: /profile
+Disallow: /dashboard
+
+# Crawl-delay: 10
+
+Sitemap: https://yourdomain.com/sitemap.xml

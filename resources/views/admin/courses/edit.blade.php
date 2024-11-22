@@ -1,112 +1,94 @@
 @extends('layouts.admin')
 
 @section('content')
-<div class="flex min-h-screen bg-gray-100">
-    <!-- Left Sidebar Navigation -->
-    <div class="w-64 bg-white shadow-lg">
-        <div class="p-6">
-            <h2 class="text-lg font-semibold text-gray-900">Edit Course</h2>
-            <p class="text-sm text-gray-600">Update course information</p>
-        </div>
-        <nav class="px-4 pb-4">
-            <a href="#basic-info" class="flex items-center px-4 py-3 text-sm font-medium text-orange-600 rounded-lg bg-orange-50">
-                <span class="flex items-center justify-center w-6 h-6 mr-3 text-sm text-white bg-orange-600 rounded-full">1</span>
-                Basic Info
-            </a>
-            <a href="#content" class="flex items-center px-4 py-3 mt-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50">
-                <span class="flex items-center justify-center w-6 h-6 mr-3 text-sm text-gray-400 bg-gray-100 rounded-full">2</span>
-                Content
-            </a>
-            <a href="#pricing" class="flex items-center px-4 py-3 mt-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50">
-                <span class="flex items-center justify-center w-6 h-6 mr-3 text-sm text-gray-400 bg-gray-100 rounded-full">3</span>
-                Pricing & Status
-            </a>
-        </nav>
-    </div>
-
-    <!-- Main Content Area -->
-    <div class="flex-1 px-8 py-6">
-        <form action="{{ route('admin.courses.update', $course) }}" method="POST" enctype="multipart/form-data" class="space-y-8">
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <form id="courseForm" action="{{ route('admin.courses.update', $course) }}" method="POST" enctype="multipart/form-data">
             @csrf
             @method('PUT')
-
-            <!-- Basic Info Section -->
-            <div id="basic-info" class="bg-white rounded-lg shadow">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Basic Information</h3>
-                </div>
-                <div class="p-6 space-y-6">
+            
+            <!-- Course Basic Information -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-lg font-medium text-gray-900 mb-6">Course Information</h2>
+                
+                <div class="grid grid-cols-1 gap-6">
+                    <!-- Title -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Course Title</label>
-                        <input type="text" name="title" value="{{ old('title', $course->title) }}"
-                               class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                        <label for="title" class="block text-sm font-medium text-gray-700">Course Title</label>
+                        <input type="text" name="title" id="title" value="{{ old('title', $course->title) }}" required
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
                     </div>
 
+                    <!-- Description -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Description</label>
-                        <textarea name="description" rows="4"
-                                  class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-orange-500 focus:ring-orange-500">{{ old('description', $course->description) }}</textarea>
+                        <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+                        <textarea name="description" id="description" rows="4" required
+                                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">{{ old('description', $course->description) }}</textarea>
                     </div>
 
+                    <!-- Price -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Course Image</label>
-                        <div class="flex items-center mt-2 space-x-4">
+                        <label for="price" class="block text-sm font-medium text-gray-700">Price ($)</label>
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span class="text-gray-500 sm:text-sm">$</span>
+                            </div>
+                            <input type="number" name="price" id="price" required min="0" step="0.01" value="{{ old('price', $course->price) }}"
+                                   class="pl-7 block w-full rounded-md border-gray-300 focus:border-orange-500 focus:ring-orange-500">
+                        </div>
+                    </div>
+
+                    <!-- Thumbnail -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Course Thumbnail</label>
+                        <div class="mt-1 flex items-center">
                             @if($course->image)
-                                <div class="w-32 h-32">
-                                    <img src="{{ asset('storage/' . $course->image) }}" alt="{{ $course->title }}"
-                                         class="object-cover w-full h-full rounded-lg">
+                                <div class="mr-4">
+                                    <img src="{{ asset('storage/' . $course->image) }}" alt="{{ $course->title }}" class="h-32 w-auto rounded-lg">
                                 </div>
                             @endif
-                            <div class="flex-1">
-                                <div class="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                                    <div class="space-y-1 text-center">
-                                        <div id="image-preview" class="hidden mb-4">
-                                            <img src="" alt="Preview" class="object-cover h-32 mx-auto rounded-lg">
-                                        </div>
-                                        <div class="flex text-sm text-gray-600">
-                                            <label class="relative font-medium text-orange-600 bg-white rounded-md cursor-pointer hover:text-orange-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-orange-500">
-                                                <span>Upload a new image</span>
-                                                <input type="file" name="image" class="sr-only" accept="image/*">
-                                            </label>
-                                        </div>
-                                        <p class="text-xs text-gray-500">PNG, JPG up to 10MB</p>
-                                    </div>
-                                </div>
+                            <div class="w-full">
+                                <input type="file" name="image" accept="image/*"
+                                       class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+                            </div>
+                        </div>
+                        <div id="thumbnail-preview" class="mt-2 hidden">
+                            <img src="" alt="Thumbnail preview" class="h-32 w-auto rounded-lg">
+                        </div>
+                    </div>
+
+                    <!-- Certificate Expiry -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <div class="flex items-center h-5">
+                                <input type="checkbox" name="has_expiry" id="has_expiry" {{ $course->validity_months ? 'checked' : '' }}
+                                       class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded">
+                            </div>
+                            <div class="ml-3">
+                                <label for="has_expiry" class="font-medium text-gray-700">Enable Certificate Expiration</label>
+                                <p class="text-gray-500 text-sm">Set an expiration period for course certificates</p>
+                            </div>
+                        </div>
+                        
+                        <div id="expiry-settings" class="mt-4 {{ $course->validity_months ? '' : 'hidden' }}">
+                            <div class="flex items-center space-x-2">
+                                <input type="number" name="validity_months" min="1" value="{{ old('validity_months', $course->validity_months ?? 12) }}"
+                                       class="block w-32 rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                <span class="text-gray-700">months</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Pricing & Status Section -->
-            <div id="pricing" class="bg-white rounded-lg shadow">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Pricing & Status</h3>
-                </div>
-                <div class="p-6 space-y-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Price ($)</label>
-                        <input type="number" name="price" value="{{ old('price', $course->price) }}" step="0.01"
-                               class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Status</label>
-                        <select name="status" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-orange-500 focus:ring-orange-500">
-                            <option value="draft" {{ old('status', $course->status) === 'draft' ? 'selected' : '' }}>Draft</option>
-                            <option value="published" {{ old('status', $course->status) === 'published' ? 'selected' : '' }}>Published</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex justify-end space-x-4">
+            <!-- Submit Button -->
+            <div class="mt-6 flex justify-end space-x-4">
                 <a href="{{ route('admin.courses.index') }}"
-                   class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                   class="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
                     Cancel
                 </a>
                 <button type="submit"
-                        class="px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                        class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
                     Update Course
                 </button>
             </div>
@@ -114,24 +96,34 @@
     </div>
 </div>
 
+@push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const imageInput = document.querySelector('input[name="image"]');
-    const imagePreview = document.getElementById('image-preview');
+    // Handle certificate expiry checkbox
+    const hasExpiryCheckbox = document.getElementById('has_expiry');
+    const expirySettings = document.getElementById('expiry-settings');
 
-    imageInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
+    hasExpiryCheckbox.addEventListener('change', function() {
+        expirySettings.classList.toggle('hidden', !this.checked);
+    });
+
+    // Handle image preview
+    const imageInput = document.querySelector('input[name="image"]');
+    const previewContainer = document.getElementById('thumbnail-preview');
+
+    imageInput.addEventListener('change', function() {
+        const file = this.files[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                imagePreview.innerHTML = `
-                    <img src="${e.target.result}" alt="Preview" class="object-cover h-32 mx-auto rounded-lg">
-                `;
-                imagePreview.classList.remove('hidden');
-            }
+                previewContainer.querySelector('img').src = e.target.result;
+                previewContainer.classList.remove('hidden');
+            };
             reader.readAsDataURL(file);
         }
     });
 });
 </script>
+@endpush
+
 @endsection

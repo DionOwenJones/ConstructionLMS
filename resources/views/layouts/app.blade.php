@@ -4,7 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'Laravel') }}</title>
+    
+    <!-- SEO Meta Tags -->
+    <title>@yield('title', config('app.name', 'Construction Training')) - Professional Construction Training Courses</title>
+    <meta name="description" content="@yield('meta_description', 'Professional construction training courses for industry professionals. Get certified and advance your career with our comprehensive training programs.')">
+    <meta name="keywords" content="@yield('meta_keywords', 'construction training, professional certification, construction courses, safety training, construction education')">
+    
 
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.1/dist/cdn.min.js"></script>
@@ -12,52 +17,40 @@
     @yield('styles')
 </head>
 <body class="font-sans antialiased">
-    <div class="min-h-screen bg-gray-100">
-        @auth
-            @if(Auth::user()->isAdmin())
-                @include('layouts.navigation.admin')
-            @elseif(Auth::user()->isBusinessOwner())
-                @include('layouts.navigation.business')
-            @else
-                @include('layouts.navigation.user')
-            @endif
+    @auth
+        @if(Auth::user()->isAdmin())
+            @include('layouts.navigation.admin')
+        @elseif(Auth::user()->isBusinessOwner())
+            @include('layouts.navigation.business')
         @else
-            @include('layouts.navigation.guest')
-        @endauth
+            @include('layouts.navigation.user')
+        @endif
+    @else
+        @include('layouts.navigation.guest')
+    @endauth
 
-        <!-- Page Content -->
-        <main>
-            @if(session('success'))
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-                    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
-                        <span class="block sm:inline">{{ session('success') }}</span>
-                    </div>
-                </div>
-            @endif
+    <!-- Page Content -->
+    <main>
+        @if (session('status'))
+            <x-notification type="success" :message="session('status')" />
+        @endif
 
-            @if(session('error'))
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                        <span class="block sm:inline">{{ session('error') }}</span>
-                    </div>
-                </div>
-            @endif
+        @if (session('success'))
+            <x-notification type="success" :message="session('success')" />
+        @endif
 
-            @if($errors->any())
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                        <ul class="list-disc list-inside">
-                            @foreach($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </div>
-            @endif
+        @if (session('error'))
+            <x-notification type="error" :message="session('error')" />
+        @endif
 
-            @yield('content')
-        </main>
-    </div>
+        @if ($errors->any())
+            @foreach ($errors->all() as $error)
+                <x-notification type="error" :message="$error" />
+            @endforeach
+        @endif
+
+        @yield('content')
+    </main>
 
     @yield('scripts')
     @stack('scripts')

@@ -80,8 +80,7 @@ class SectionController extends Controller
 
             // Check if this is a business-allocated course
             $businessAllocation = DB::table('business_course_allocations')
-                ->join('business_employees', 'business_course_allocations.business_employee_id', '=', 'business_employees.id')
-                ->where('business_employees.user_id', $userId)
+                ->where('user_id', $userId)
                 ->first();
 
             if ($businessAllocation) {

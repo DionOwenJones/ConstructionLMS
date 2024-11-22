@@ -36,7 +36,6 @@
         animation: spin 1s linear infinite;
         display: inline-block;
         vertical-align: middle;
-        margin-left: 8px;
     }
     @keyframes spin {
         0% { transform: rotate(0deg); }
@@ -58,8 +57,8 @@
                         <p class="text-gray-600">{{ Str::limit($course->description, 100) }}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-2xl font-bold text-gray-900">${{ number_format($course->price, 2) }}</p>
-                        <p class="text-sm text-gray-500">per seat</p>
+                        <p class="text-2xl font-bold text-gray-900">£{{ number_format($course->price, 2) }}</p>
+                        <p class="text-sm text-gray-500">per license</p>
                     </div>
                 </div>
             </div>
@@ -80,25 +79,28 @@
                 @csrf
                 <input type="hidden" name="payment_method" id="payment_method">
                 
-                <!-- Number of Seats -->
+                <!-- Number of Licenses -->
                 <div class="mb-6">
-                    <label for="seats" class="block text-sm font-medium text-gray-700 mb-2">Number of Seats</label>
-                    <div class="flex items-center gap-x-4">
-                        <button type="button" onclick="decrementSeats()" class="p-2 rounded-lg border border-gray-300 hover:bg-gray-50">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                    <label for="seats" class="block text-sm font-medium text-gray-700 mb-2">Number of Licenses</label>
+                    <div class="flex items-center space-x-2">
+                        <button type="button" onclick="decrementSeats()" 
+                                class="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
                             </svg>
                         </button>
-                        <input type="number" name="seats" id="seats" min="1" value="{{ old('seats', 1) }}" onchange="updateTotal()"
-                            class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 text-center">
-                        <button type="button" onclick="incrementSeats()" class="p-2 rounded-lg border border-gray-300 hover:bg-gray-50">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                        <input type="number" id="seats" name="seats" value="1" min="1"
+                               class="block w-20 rounded-lg border-gray-300 text-center focus:border-blue-500 focus:ring-blue-500"
+                               required>
+                        <button type="button" onclick="incrementSeats()"
+                                class="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                             </svg>
                         </button>
                     </div>
                     @error('seats')
-                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
                 </div>
 
@@ -106,7 +108,7 @@
                 <div class="mb-6 p-4 bg-gray-50 rounded-lg">
                     <div class="flex justify-between items-center">
                         <span class="text-gray-700">Total Amount:</span>
-                        <span class="text-2xl font-bold text-gray-900">$<span id="total-amount">{{ number_format($course->price * old('seats', 1), 2) }}</span></span>
+                        <span class="text-2xl font-bold text-gray-900">£<span id="total-amount">{{ number_format($course->price * old('seats', 1), 2) }}</span></span>
                     </div>
                 </div>
 
@@ -134,9 +136,14 @@
 @section('scripts')
 <script src="https://js.stripe.com/v3/"></script>
 <script>
+    // Get CSRF token from meta tag
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    // Initialize Stripe
     const stripe = Stripe('{{ $stripeKey }}');
     const elements = stripe.elements();
     
+    // Create card Element
     const card = elements.create('card', {
         hidePostalCode: true,
         style: {
@@ -158,6 +165,7 @@
     
     card.mount('#card-element');
     
+    // Handle real-time validation errors
     card.addEventListener('change', function(event) {
         const displayError = document.getElementById('card-errors');
         const container = document.querySelector('.card-element-container');
@@ -169,74 +177,107 @@
             displayError.textContent = '';
             container.classList.remove('invalid');
         }
+    });
 
-        if (event.elementType === 'card' && event.complete) {
-            container.classList.add('focused');
-        } else {
-            container.classList.remove('focused');
-        }
+    // Handle focus state
+    card.addEventListener('focus', function() {
+        document.querySelector('.card-element-container').classList.add('focused');
+    });
+
+    card.addEventListener('blur', function() {
+        document.querySelector('.card-element-container').classList.remove('focused');
     });
     
+    // Handle form submission
     const form = document.getElementById('payment-form');
     const submitButton = document.getElementById('submit-button');
-    const buttonText = document.getElementById('button-text');
     const spinner = document.getElementById('spinner');
-
-    form.addEventListener('submit', async (event) => {
+    const buttonText = document.getElementById('button-text');
+    
+    form.addEventListener('submit', async function(event) {
         event.preventDefault();
         setLoading(true);
-
+        
         try {
-            const {paymentMethod, error} = await stripe.createPaymentMethod({
+            // Create payment method
+            const { paymentMethod, error } = await stripe.createPaymentMethod({
                 type: 'card',
                 card: card,
                 billing_details: {
-                    name: '{{ Auth::user()->name }}',
-                    email: '{{ Auth::user()->email }}'
+                    name: '{{ $business->name }}',
+                    email: '{{ $business->owner->email }}'
                 }
             });
-
+            
             if (error) {
-                const errorElement = document.getElementById('card-errors');
-                errorElement.textContent = error.message;
-                setLoading(false);
-                return;
+                throw error;
             }
 
-            document.getElementById('payment_method').value = paymentMethod.id;
-            form.submit();
+            // Send payment method ID to server
+            const response = await fetch('{{ route('business.courses.purchase.process', $course) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify({
+                    payment_method_id: paymentMethod.id,
+                    seats: document.getElementById('seats').value,
+                    _token: csrfToken
+                })
+            });
 
+            const result = await response.json();
+            
+            if (result.requires_action) {
+                // Handle 3D Secure authentication
+                const { error, paymentIntent } = await stripe.handleCardAction(
+                    result.payment_intent_client_secret
+                );
+
+                if (error) {
+                    throw error;
+                }
+
+                // Confirm the payment after 3D Secure
+                const confirmResponse = await fetch('{{ route('business.courses.purchase.process', $course) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    },
+                    body: JSON.stringify({
+                        payment_intent_id: paymentIntent.id,
+                        seats: document.getElementById('seats').value,
+                        _token: csrfToken
+                    })
+                });
+
+                const confirmResult = await confirmResponse.json();
+                handleServerResponse(confirmResult);
+            } else {
+                handleServerResponse(result);
+            }
         } catch (error) {
-            const errorElement = document.getElementById('card-errors');
-            errorElement.textContent = error.message || 'An error occurred while processing your payment.';
-            setLoading(false);
+            console.error('Payment Error:', error);
+            handleError(error);
         }
     });
-
-    function updateTotal() {
-        const seats = parseInt(document.getElementById('seats').value) || 1;
-        if (seats < 1) {
-            document.getElementById('seats').value = 1;
-            seats = 1;
+    
+    function handleServerResponse(response) {
+        if (response.error) {
+            handleError({ message: response.error });
+            return;
         }
-        const pricePerSeat = {{ $course->price }};
-        const total = (seats * pricePerSeat).toFixed(2);
-        document.getElementById('total-amount').textContent = total;
-    }
-
-    function incrementSeats() {
-        const seatsInput = document.getElementById('seats');
-        seatsInput.value = parseInt(seatsInput.value) + 1;
-        updateTotal();
-    }
-
-    function decrementSeats() {
-        const seatsInput = document.getElementById('seats');
-        const currentValue = parseInt(seatsInput.value);
-        if (currentValue > 1) {
-            seatsInput.value = currentValue - 1;
-            updateTotal();
+        
+        if (response.success && response.redirect) {
+            window.location.href = response.redirect;
+            return;
         }
+        
+        handleError({ message: 'An unexpected error occurred. Please try again.' });
     }
 
     function setLoading(isLoading) {
@@ -249,6 +290,34 @@
             buttonText.style.opacity = '1';
             spinner.classList.add('hidden');
         }
+    }
+    
+    function handleError(error) {
+        const errorElement = document.getElementById('card-errors');
+        errorElement.textContent = error.message || 'An error occurred. Please try again.';
+        setLoading(false);
+        console.error('Payment Error:', error);
+    }
+
+    // Handle seat quantity changes
+    function updateTotal() {
+        const seats = document.getElementById('seats').value;
+        const price = {{ $course->price }};
+        const total = (seats * price).toFixed(2);
+        document.getElementById('total-amount').textContent = total;
+    }
+
+    function incrementSeats() {
+        const input = document.getElementById('seats');
+        input.value = parseInt(input.value) + 1;
+        updateTotal();
+    }
+
+    function decrementSeats() {
+        const input = document.getElementById('seats');
+        const newValue = Math.max(1, parseInt(input.value) - 1);
+        input.value = newValue;
+        updateTotal();
     }
 </script>
 @endsection

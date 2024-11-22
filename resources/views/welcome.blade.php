@@ -1,5 +1,11 @@
 @extends('layouts.app')
 
+@section('title', 'Welcome to Construction Training - Expert-Led Construction Courses')
+
+@section('meta_description', 'Transform your construction career with our professional training courses. Industry-recognized certifications, expert instructors, and comprehensive learning materials for construction professionals.')
+
+@section('meta_keywords', 'construction training, professional courses, construction certification, safety training, online learning, construction education, professional development, construction skills, industry certification')
+
 @section('content')
 <!-- Hero Section with Gradient Background -->
 <div class="relative overflow-hidden bg-white">

@@ -43,7 +43,7 @@ class BusinessEmployeeController extends Controller
         ]);
 
         BusinessCourseAllocation::create([
-            'business_employee_id' => $employee->id,
+            'user_id' => $employee->id,
             'course_id' => $request->course_id,
             'allocated_at' => now(),
         ]);

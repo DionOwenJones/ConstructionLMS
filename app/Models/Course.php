@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class Course extends Model
 {
@@ -23,11 +25,17 @@ class Course extends Model
         'stripe_price_id',
         'stripe_product_id',
         'is_free',
-        'business_id'
+        'business_id',
+        'slug',
+        'has_expiry',
+        'validity_months'
     ];
 
     protected $casts = [
         'is_free' => 'boolean',
+        'price' => 'decimal:2',
+        'has_expiry' => 'boolean',
+        'validity_months' => 'integer'
     ];
 
     /**
@@ -65,6 +73,14 @@ class Course extends Model
     }
 
     /**
+     * Get the orders for this course.
+     */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    /**
      * Get the purchases for this course.
      */
     public function purchases()
@@ -81,13 +97,31 @@ class Course extends Model
     }
 
     /**
-     * Check if a user has purchased this course.
+     * Check if a user has purchased this course or has it allocated through a business.
      */
-    public function isPurchasedBy(User $user): bool
+    public function isPurchasedBy(?User $user): bool
     {
-        return $this->purchases()
+        // If no user (guest), they haven't purchased
+        if (!$user) {
+            return false;
+        }
+
+        // Check for direct purchase
+        $directPurchase = $this->purchases()
             ->where('user_id', $user->id)
             ->where('status', 'completed')
+            ->exists();
+
+        if ($directPurchase) {
+            return true;
+        }
+
+        // Check for business allocation
+        return BusinessCourseAllocation::query()
+            ->whereHas('purchase', function ($query) {
+                $query->where('course_id', $this->id);
+            })
+            ->where('user_id', $user->id)
             ->exists();
     }
 
@@ -266,6 +300,14 @@ class Course extends Model
     }
 
     /**
+     * Get the certificate for a specific user.
+     */
+    public function certificate()
+    {
+        return $this->hasOne(Certificate::class)->where('user_id', auth()->id());
+    }
+
+    /**
      * Check if all sections are completed by the user.
      */
     public function isCompletedByUserOld(User $user): bool
@@ -304,5 +346,74 @@ class Course extends Model
     {
         $enrollment = $this->users()->where('user_id', $user->id)->first();
         return $enrollment && $enrollment->pivot->completed;
+    }
+
+    /**
+     * Calculate the expiry date for the course.
+     */
+    public function calculateExpiryDate()
+    {
+        if (!$this->has_expiry) {
+            return null;
+        }
+        return now()->addMonths($this->validity_months);
+    }
+
+    /**
+     * Get the days until expiry for a certificate.
+     */
+    public function getDaysUntilExpiry($certificateDate)
+    {
+        if (!$this->has_expiry || !$this->expiry_months || !$certificateDate) {
+            return null;
+        }
+
+        $expiryDate = Carbon::parse($certificateDate)->addMonths($this->expiry_months);
+        $now = Carbon::now();
+
+        if ($now->gt($expiryDate)) {
+            return 0;
+        }
+
+        return $now->diffInDays($expiryDate);
+    }
+
+    /**
+     * Check if a certificate has expired.
+     */
+    public function isExpired($certificateDate)
+    {
+        if (!$this->has_expiry || !$certificateDate) {
+            return false;
+        }
+        
+        $expiryDate = $certificateDate->copy()->addMonths($this->validity_months);
+        return now()->greaterThan($expiryDate);
+    }
+
+    /**
+     * Check if a user is enrolled in this course
+     */
+    public function isUserEnrolled(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        return $this->isPurchasedBy($user);
+    }
+
+    /**
+     * Get the sections that a user can access
+     */
+    public function getAccessibleSections(?User $user)
+    {
+        $query = $this->sections()->orderBy('order');
+        
+        if (!$this->isUserEnrolled($user)) {
+            $query->take(2); // Only first 2 sections for non-enrolled users
+        }
+        
+        return $query;
     }
 }

@@ -41,6 +41,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'last_login_at' => 'datetime',
     ];
 
     public function courses(): BelongsToMany
@@ -97,6 +98,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
     }
 
     public function getBusiness()

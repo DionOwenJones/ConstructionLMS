@@ -166,8 +166,10 @@ class BusinessEmployeeController extends Controller
 
         DB::transaction(function () use ($employee) {
             // Remove course allocations
-            BusinessCourseAllocation::where('user_id', $employee->user_id)
-                ->where('business_id', $employee->business_id)
+            BusinessCourseAllocation::whereHas('purchase', function($query) use ($employee) {
+                    $query->where('business_id', $employee->business_id);
+                })
+                ->where('user_id', $employee->user_id)
                 ->delete();
 
             // Remove employee record

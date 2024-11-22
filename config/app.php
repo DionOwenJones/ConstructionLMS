@@ -19,6 +19,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Site Password Protection
+    |--------------------------------------------------------------------------
+    |
+    | This value is used for the global site password protection. When set,
+    | all routes will require this password before access is granted.
+    |
+    */
+
+    'site_password' => env('SITE_PASSWORD'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

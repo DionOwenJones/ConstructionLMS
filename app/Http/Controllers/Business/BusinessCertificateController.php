@@ -131,16 +131,16 @@ class BusinessCertificateController extends Controller
             $data = [
                 'course' => $course,
                 'user' => $employee->user,
-                'completed_at' => Carbon::parse($enrollment->completed_at)->format('F d, Y'),
+                'completedAt' => Carbon::parse($enrollment->completed_at),
                 'certificate_number' => sprintf('CERT-%s-%s-%s', 
                     strtoupper(substr($employee->user->name, 0, 3)),
                     $course->id,
                     date('Ymd', strtotime($enrollment->completed_at))
-                ),
-                'business_name' => $business->company_name
+                )
             ];
 
-            $pdf = PDF::loadView('certificates.business-template', $data);
+            $pdf = PDF::loadView('certificates.course', $data)
+                ->setPaper('a4', 'landscape');
             
             return $pdf->download(sprintf('certificate-%s-%s.pdf', 
                 Str::slug($employee->user->name),

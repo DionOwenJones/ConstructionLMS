@@ -20,7 +20,7 @@
                                 <path d="M12 12a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                             <span class="inline-flex items-center rounded-lg bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                                {{ $purchase->available_seats }} seats available
+                                {{ $purchase->available_seats }} licenses available
                             </span>
                         </div>
                     </div>
@@ -84,7 +84,7 @@
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-x-3">
                                         <input type="checkbox"
-                                               name="user_ids[]"
+                                               name="employee_ids[]"
                                                value="{{ $employee->user->id }}"
                                                id="employee_{{ $employee->id }}"
                                                class="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-600">

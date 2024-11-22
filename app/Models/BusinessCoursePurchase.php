@@ -36,12 +36,17 @@ class BusinessCoursePurchase extends Model
 
     public function allocations(): HasMany
     {
-        return $this->hasMany(BusinessCourseAllocation::class);
+        return $this->hasMany(BusinessCourseAllocation::class, 'business_course_purchase_id');
+    }
+
+    public function getSeatsUsedAttribute(): int
+    {
+        return $this->allocations()->count();
     }
 
     public function getAvailableSeatsAttribute(): int
     {
-        return $this->seats_purchased - $this->allocations()->count();
+        return $this->seats_purchased - $this->seats_used;
     }
 
     public function hasAvailableSeats(): bool
@@ -62,7 +67,8 @@ class BusinessCoursePurchase extends Model
 
         return BusinessCourseAllocation::create([
             'business_course_purchase_id' => $this->id,
-            'business_employee_id' => $employee->id,
+            'user_id' => $employee->user_id,
+            'allocated_at' => now(),
             'expires_at' => $expiresAt
         ]);
     }

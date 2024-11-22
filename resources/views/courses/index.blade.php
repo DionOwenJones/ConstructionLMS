@@ -1,5 +1,11 @@
 @extends('layouts.app')
 
+@section('title', 'Construction Training Courses')
+
+@section('meta_description', 'Browse our comprehensive selection of professional construction training courses. From safety certifications to specialized skills, advance your construction career with our expert-led programs.')
+
+@section('meta_keywords', 'construction courses, professional training, construction certification, safety training, construction skills, construction education, professional development')
+
 @section('content')
 <div class="py-12">
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">

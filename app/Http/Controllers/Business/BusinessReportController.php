@@ -59,11 +59,11 @@ class BusinessReportController extends Controller
             ->with(['purchase.course', 'employee'])
             ->select([
                 'business_course_purchase_id',
-                'business_employee_id',
+                'user_id',
                 DB::raw('COUNT(*) as allocation_count'),
                 DB::raw('SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_count')
             ])
-            ->groupBy(['business_course_purchase_id', 'business_employee_id'])
+            ->groupBy(['business_course_purchase_id', 'user_id'])
             ->get();
 
         return view('business.reports.allocations', compact('allocations', 'startDate', 'endDate'));
@@ -83,12 +83,12 @@ class BusinessReportController extends Controller
             ->whereBetween('allocated_at', [$startDate, $endDate])
             ->with(['employee'])
             ->select([
-                'business_employee_id',
+                'user_id',
                 DB::raw('COUNT(*) as total_courses'),
                 DB::raw('SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_courses'),
                 DB::raw('AVG(CASE WHEN completed = 1 THEN 1 ELSE 0 END) * 100 as completion_rate')
             ])
-            ->groupBy('business_employee_id')
+            ->groupBy('user_id')
             ->get();
 
         return view('business.reports.employee-progress', compact('progress', 'startDate', 'endDate'));

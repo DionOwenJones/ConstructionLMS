@@ -50,14 +50,6 @@ class RegisteredUserController extends Controller
             'role' => $request->role,
         ]);
 
-        // Send verification email before login
-        try {
-            $user->notify(new VerifyEmail);
-            Log::info('Verification email sent to: ' . $user->email);
-        } catch (\Exception $e) {
-            Log::error('Failed to send verification email: ' . $e->getMessage());
-        }
-
         event(new Registered($user));
 
         Auth::login($user);

@@ -16,9 +16,11 @@ class CertificateController extends Controller
     public function generate(Course $course)
     {
         try {
+            $user = Auth::user();
+            
             // Verify course completion
             $enrollment = DB::table('course_user')
-                ->where('user_id', Auth::id())
+                ->where('user_id', $user->id)
                 ->where('course_id', $course->id)
                 ->where('completed', true)
                 ->first();
@@ -29,7 +31,7 @@ class CertificateController extends Controller
             }
 
             // Check if certificate already exists
-            $existingCertificate = Certificate::where('user_id', Auth::id())
+            $existingCertificate = Certificate::where('user_id', $user->id)
                 ->where('course_id', $course->id)
                 ->first();
 
@@ -39,20 +41,20 @@ class CertificateController extends Controller
 
             // Generate new certificate
             $certificate = Certificate::create([
-                'user_id' => Auth::id(),
+                'user_id' => $user->id,
                 'course_id' => $course->id,
                 'certificate_number' => sprintf('CERT-%s-%s-%s', 
-                    strtoupper(substr(Auth::user()->name, 0, 3)),
+                    strtoupper(substr($user->name, 0, 3)),
                     $course->id,
-                    date('Ymd', strtotime($enrollment->completed_at))
+                    date('Ymd')
                 ),
-                'issued_at' => Carbon::parse($enrollment->completed_at)
+                'issued_at' => now()
             ]);
 
             return redirect()->route('certificates.download', $certificate->id);
 
         } catch (\Exception $e) {
-            Log::error('Error generating certificate: ' . $e->getMessage());
+            \Log::error('Error generating certificate: ' . $e->getMessage());
             return back()->with('error', 'Error generating certificate. Please try again.');
         }
     }
@@ -77,57 +79,46 @@ class CertificateController extends Controller
     public function download($id)
     {
         try {
-            $user = Auth::user();
-            
-            // Get the certificate or check course completion
-            $certificate = Certificate::where('id', $id)
-                ->where('user_id', $user->id)
-                ->first();
+            // Find certificate by ID
+            $certificate = Certificate::with(['user', 'course'])
+                ->where('id', $id)
+                ->where('user_id', auth()->id())
+                ->firstOrFail();
 
-            if (!$certificate) {
-                // Check if course is completed but certificate not generated
-                $course = Course::findOrFail($id);
-                $enrollment = DB::table('course_user')
-                    ->where('user_id', $user->id)
-                    ->where('course_id', $course->id)
-                    ->where('completed', true)
-                    ->first();
-
-                if (!$enrollment) {
-                    return back()->with('error', 'You have not completed this course yet.');
-                }
-
-                // Generate new certificate
-                $certificate = Certificate::create([
-                    'user_id' => $user->id,
-                    'course_id' => $course->id,
-                    'certificate_number' => sprintf('CERT-%s-%s-%s', 
-                        strtoupper(substr($user->name, 0, 3)),
-                        $course->id,
-                        date('Ymd', strtotime($enrollment->completed_at))
-                    ),
-                    'issued_at' => Carbon::parse($enrollment->completed_at)
-                ]);
+            // Check if course exists
+            if (!$certificate->course) {
+                return back()->with('error', 'Course not found for this certificate.');
             }
 
-            $course = Course::findOrFail($certificate->course_id);
-
-            // Generate PDF
             $data = [
-                'course' => $course,
-                'user' => $user,
-                'completedAt' => $certificate->issued_at,
-                'certificate_number' => $certificate->certificate_number
+                'user' => $certificate->user,
+                'course' => $certificate->course,
+                'completedAt' => $certificate->created_at,
+                'certificate_number' => $certificate->id
             ];
 
-            $pdf = PDF::loadView('certificates.course', $data)
-                ->setPaper('a4', 'landscape');
+            $pdf = PDF::loadView('certificates.course', $data);
             
-            return $pdf->download(sprintf('certificate-%s.pdf', Str::slug($course->title)));
+            // Set paper size to match 1920x1080
+            $pdf->setPaper([0, 0, 1920, 1080], 'landscape');
+            
+            // Basic PDF options
+            $pdf->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'Arial'
+            ]);
 
+            $filename = "certificate_{$certificate->id}.pdf";
+            
+            return $pdf->download($filename);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return back()->with('error', 'Certificate not found.');
         } catch (\Exception $e) {
-            Log::error('Error generating certificate: ' . $e->getMessage());
-            return back()->with('error', 'Error generating certificate. Please try again.');
+            \Log::error('Certificate generation failed: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return back()->with('error', 'Failed to generate certificate. Please try again.');
         }
     }
 }

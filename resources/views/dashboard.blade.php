@@ -44,7 +44,61 @@
             $completedCourses = $enrolledCourses->filter(function($course) {
                 return $course->completed;
             });
+
+            // Get expiring certificates
+            $expiringCertificates = Auth::user()->certificates()
+                ->whereHas('course', function($query) {
+                    $query->where('has_expiry', true);
+                })
+                ->with(['course' => function($query) {
+                    $query->select('id', 'title', 'has_expiry', 'expiry_months');
+                }])
+                ->get()
+                ->filter(function($certificate) {
+                    if (!$certificate->course) {
+                        return false;
+                    }
+                    $daysUntilExpiry = $certificate->course->getDaysUntilExpiry($certificate->created_at);
+                    return $daysUntilExpiry !== null && $daysUntilExpiry <= 30 && $daysUntilExpiry > 0;
+                });
         @endphp
+
+        <!-- Expiring Certificates Alert -->
+        @if($expiringCertificates->isNotEmpty())
+            <div class="mb-8">
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-yellow-800">Certificates Expiring Soon</h3>
+                            <div class="mt-2 text-sm text-yellow-700">
+                                <ul class="list-disc pl-5 space-y-1">
+                                    @foreach($expiringCertificates as $certificate)
+                                        @php
+                                            $daysUntilExpiry = $certificate->course->getDaysUntilExpiry($certificate->created_at);
+                                        @endphp
+                                        @if($daysUntilExpiry > 0)
+                                            <li>
+                                                Your certificate for "{{ $certificate->course->title }}" will expire in 
+                                                {{ $daysUntilExpiry }} days.
+                                                <a href="{{ route('courses.show', $certificate->course) }}" 
+                                                   class="font-medium text-yellow-800 underline hover:text-yellow-900">
+                                                    Retake course
+                                                </a>
+                                            </li>
+                                        @endif
+                                    @endforeach
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         @if($enrolledCourses->count() > 0)
             <!-- Course Grid -->
@@ -75,7 +129,9 @@
                                                 <!-- Progress Bar -->
                                                 <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
                                                     @php
-                                                        $progress = ($course->completed_sections_count / $course->sections_count) * 100;
+                                                        $progress = $course->sections_count > 0 
+                                                            ? ($course->completed_sections_count / $course->sections_count) * 100 
+                                                            : 0;
                                                     @endphp
                                                     <div class="bg-orange-600 h-2.5 rounded-full" style="width: {{ $progress }}%"></div>
                                                 </div>
@@ -121,19 +177,33 @@
                                             <!-- Course Info -->
                                             <div class="flex-1">
                                                 <h3 class="text-lg font-semibold text-gray-900 mb-1">{{ $course->title }}</h3>
-                                                <p class="text-sm text-gray-600 mb-4">{{ Str::limit($course->description, 100) }}</p>
                                                 <p class="text-sm text-gray-500">
                                                     Completed on {{ Carbon::parse($course->completed_at)->format('F j, Y') }}
                                                 </p>
                                                 
                                                 <!-- Certificate Button -->
-                                                <div class="mt-4">
-                                                    <a href="{{ route('certificates.download', $course->id) }}" 
-                                                       class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
-                                                        Download Certificate
-                                                        <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                                                        </svg>
+                                                <div class="mt-4 flex space-x-4">
+                                                    @if($course->certificate)
+                                                        <a href="{{ route('certificates.download', $course->certificate->id) }}" 
+                                                           class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                                                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                                            </svg>
+                                                            Download Certificate
+                                                        </a>
+                                                    @else
+                                                        <a href="{{ route('courses.certificate.generate', $course) }}" 
+                                                           class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                                                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                            </svg>
+                                                            Generate Certificate
+                                                        </a>
+                                                    @endif
+                                                    
+                                                    <a href="{{ route('courses.show', $course) }}" 
+                                                       class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200">
+                                                        Review Course
                                                     </a>
                                                 </div>
                                             </div>
