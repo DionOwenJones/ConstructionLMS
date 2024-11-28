@@ -16,5 +16,10 @@ export default defineConfig({
                 manualChunks: undefined
             }
         }
+    },
+    server: {
+        hmr: {
+            host: '${RAILWAY_STATIC_URL}'
+        }
     }
 });
