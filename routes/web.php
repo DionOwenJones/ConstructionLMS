@@ -204,6 +204,25 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/setup', [BusinessSetupController::class, 'show'])->name('setup')->withoutMiddleware(['verified']);
         Route::post('/setup', [BusinessSetupController::class, 'store'])->name('setup.store')->withoutMiddleware(['verified']);
 
+        // Employee Management Routes
+        Route::get('/employees', [BusinessEmployeeController::class, 'index'])->name('employees.index');
+        Route::get('/employees/create', [BusinessEmployeeController::class, 'create'])->name('employees.create');
+        Route::post('/employees', [BusinessEmployeeController::class, 'store'])->name('employees.store');
+        Route::get('/employees/{employee}/edit', [BusinessEmployeeController::class, 'edit'])->name('employees.edit');
+        Route::put('/employees/{employee}', [BusinessEmployeeController::class, 'update'])->name('employees.update');
+        Route::delete('/employees/{employee}', [BusinessEmployeeController::class, 'destroy'])->name('employees.destroy');
+        Route::post('/employees/{employee}/allocate-course', [BusinessEmployeeController::class, 'allocateCourse'])->name('employees.allocate-course');
+
+        // Course Management Routes
+        Route::get('/courses', [BusinessCourseManagementController::class, 'index'])->name('courses.index');
+        Route::get('/courses/available', [BusinessCourseManagementController::class, 'available'])->name('courses.available');
+        Route::get('/courses/purchased', [BusinessCourseManagementController::class, 'purchased'])->name('courses.purchased');
+        Route::get('/courses/purchases', [BusinessCourseManagementController::class, 'purchases'])->name('courses.purchases');
+        Route::get('/courses/{course}/purchase', [BusinessCourseManagementController::class, 'purchase'])->name('courses.purchase');
+        Route::post('/courses/{course}/purchase/process', [BusinessCoursePurchaseController::class, 'process'])->name('courses.purchase.process');
+        Route::get('/courses/{purchase}/allocate', [BusinessCourseManagementController::class, 'allocate'])->name('courses.allocate');
+        Route::post('/courses/{purchase}/allocate', [BusinessCourseAllocationController::class, 'store'])->name('courses.allocate.store');
+
         // Dashboard Routes
         Route::get('/', [BusinessController::class, 'dashboard'])->name('dashboard');
         Route::get('/dashboard', [BusinessController::class, 'dashboard'])->name('dashboard');
@@ -214,17 +233,6 @@ Route::middleware(['auth'])->group(function () {
 
         // Analytics Route
         Route::get('/analytics', [BusinessController::class, 'analytics'])->name('analytics');
-
-        // Employee Management Routes
-        Route::get('/employees', [BusinessEmployeeController::class, 'index'])->name('employees.index');
-        Route::get('/employees/create', [BusinessEmployeeController::class, 'create'])->name('employees.create');
-        Route::post('/employees', [BusinessEmployeeController::class, 'store'])->name('employees.store');
-        Route::get('/employees/{employee}/edit', [BusinessEmployeeController::class, 'edit'])->name('employees.edit');
-        Route::put('/employees/{employee}', [BusinessEmployeeController::class, 'update'])->name('employees.update');
-        Route::delete('/employees/{employee}', [BusinessEmployeeController::class, 'destroy'])->name('employees.destroy');
-        Route::post('/employees/invite', [BusinessEmployeeController::class, 'invite'])->name('employees.invite');
-        Route::post('/employees/bulk-invite', [BusinessEmployeeController::class, 'bulkInvite'])->name('employees.bulk-invite');
-        Route::get('/employees/export', [BusinessEmployeeController::class, 'export'])->name('employees.export');
 
         // Course Management Routes
         Route::get('/courses', [BusinessCourseManagementController::class, 'index'])->name('courses.index');
