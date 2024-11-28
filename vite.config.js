@@ -14,8 +14,14 @@ export default defineConfig({
         rollupOptions: {
             external: [
                 'jquery',
-                'alpinejs'
+                'alpinejs',
+                '@alpinejs/focus'
             ]
+        }
+    },
+    server: {
+        hmr: {
+            host: 'localhost'
         }
     }
 });
