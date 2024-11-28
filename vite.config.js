@@ -17,7 +17,10 @@ export default defineConfig({
                 'alpinejs',
                 '@alpinejs/focus'
             ]
-        }
+        },
+        // Add these options to handle the build environment better
+        minify: true,
+        sourcemap: false
     },
     server: {
         hmr: {
