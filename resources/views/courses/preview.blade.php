@@ -1,99 +1,94 @@
-@extends('layouts.app')
+@extends('layouts.admin')
 
 @section('content')
-<div class="py-12">
-    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+    <div class="container mx-auto px-4 py-6">
+        <!-- Course Header Section -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+            @if($course->image)
+                <div class="relative h-72">
+                    <img src="{{ asset('storage/' . $course->image) }}" 
+                         alt="{{ $course->title }}" 
+                         class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 right-0 p-6 text-white">
+                        <h1 class="text-3xl font-bold mb-2">{{ $course->title }}</h1>
+                        <div class="flex items-center space-x-4">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                                {{ $course->status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
+                                {{ ucfirst($course->status) }}
+                            </span>
+                            <span class="text-white/90">{{ $course->sections->count() }} {{ Str::plural('Section', $course->sections->count()) }}</span>
+                        </div>
+                    </div>
+                </div>
+            @else
+                <div class="p-6">
+                    <h1 class="text-3xl font-bold text-gray-900 mb-2">{{ $course->title }}</h1>
+                    <div class="flex items-center space-x-4">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                            {{ $course->status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
+                            {{ ucfirst($course->status) }}
+                        </span>
+                        <span class="text-gray-600">{{ $course->sections->count() }} {{ Str::plural('Section', $course->sections->count()) }}</span>
+                    </div>
+                </div>
+            @endif
+        </div>
+
+        <!-- Course Description Section -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
             <div class="p-6">
-                <div class="mb-8">
-                    <h2 class="text-3xl font-bold mb-4">{{ $course->title }}</h2>
-                    
-                    @if($course->image)
-                        <img src="{{ asset('storage/' . $course->image) }}" alt="{{ $course->title }}" class="w-full h-64 object-cover rounded-lg mb-6">
-                    @endif
-
-                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 class="text-xl font-semibold text-gray-900">Course Overview</h3>
-                                <p class="text-gray-600 mt-1">{{ $course->description }}</p>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-2xl font-bold text-orange-600 mb-2">{{ $course->formatted_price }}</div>
-                                <a href="{{ route('courses.purchase', $course) }}" 
-                                   class="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors">
-                                    Purchase Course
-                                </a>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                            <div class="bg-white p-4 rounded-lg">
-                                <div class="text-lg font-semibold text-gray-900">{{ $course->sections->count() }}</div>
-                                <div class="text-sm text-gray-600">Sections</div>
-                            </div>
-                            <div class="bg-white p-4 rounded-lg">
-                                <div class="text-lg font-semibold text-gray-900">{{ $course->estimated_hours ?? '2' }}</div>
-                                <div class="text-sm text-gray-600">Hours</div>
-                            </div>
-                            <div class="bg-white p-4 rounded-lg">
-                                <div class="text-lg font-semibold text-gray-900">{{ $course->difficulty ?? 'Beginner' }}</div>
-                                <div class="text-sm text-gray-600">Level</div>
-                            </div>
-                            <div class="bg-white p-4 rounded-lg">
-                                <div class="text-lg font-semibold text-gray-900">{{ $course->language ?? 'English' }}</div>
-                                <div class="text-sm text-gray-600">Language</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Course Content Preview -->
-                    <div class="mb-8">
-                        <h3 class="text-xl font-semibold mb-4">Course Content Preview</h3>
-                        <div class="space-y-4">
-                            @foreach($previewSections as $section)
-                                <div class="bg-white border border-gray-200 rounded-lg p-4">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center space-x-3">
-                                            <div class="flex-shrink-0">
-                                                <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                                                    <span class="text-orange-600 font-semibold">{{ $loop->iteration }}</span>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <h4 class="text-lg font-medium text-gray-900">{{ $section->title }}</h4>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <span class="text-sm text-gray-500">Preview</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endforeach
-
-                            @if($course->sections->count() > 3)
-                                <div class="text-center py-4">
-                                    <p class="text-gray-600">Plus {{ $course->sections->count() - 3 }} more sections</p>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-
-                    <!-- Purchase Call to Action -->
-                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center">
-                        <h3 class="text-2xl font-bold text-gray-900 mb-2">Ready to Start Learning?</h3>
-                        <p class="text-gray-600 mb-6">Gain access to the full course content and start your learning journey today.</p>
-                        <a href="{{ route('courses.purchase', $course) }}" 
-                           class="inline-flex items-center px-6 py-3 bg-orange-600 text-white text-lg font-medium rounded-xl hover:bg-orange-700 transition-colors">
-                            Purchase Now for {{ $course->formatted_price }}
-                            <svg class="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-                            </svg>
-                        </a>
-                    </div>
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">About This Course</h2>
+                <div class="prose max-w-none text-gray-600">
+                    {!! $course->description !!}
                 </div>
             </div>
         </div>
+
+        <!-- Course Sections Preview -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-900">Course Content</h2>
+                    <span class="text-sm text-gray-600">{{ $course->sections->count() }} {{ Str::plural('section', $course->sections->count()) }}</span>
+                </div>
+                
+                <div class="space-y-4">
+                    @foreach($previewSections as $section)
+                        <div class="border rounded-lg p-4">
+                            <h3 class="text-lg font-medium text-gray-900 mb-2">{{ $section->title }}</h3>
+                            @if($section->description)
+                                <p class="text-gray-600 text-sm mb-2">{{ $section->description }}</p>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+
+                @if($course->sections->count() > 3)
+                    <div class="mt-4 text-center">
+                        <p class="text-sm text-gray-600">And {{ $course->sections->count() - 3 }} more sections...</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-between items-center">
+            <a href="{{ route('admin.courses.index') }}" 
+               class="inline-flex items-center px-4 py-2 bg-gray-100 border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                Back to Courses
+            </a>
+            
+            <a href="{{ route('admin.courses.edit', $course->id) }}" 
+               class="inline-flex items-center px-4 py-2 bg-orange-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-orange-700 focus:bg-orange-700 active:bg-orange-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit Course
+            </a>
+        </div>
     </div>
-</div>
 @endsection

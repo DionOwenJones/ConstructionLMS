@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\User;
 use App\Models\Course;
+use App\Models\DiscountCode;
 
 class CoursePurchase extends Model
 {
@@ -21,11 +22,14 @@ class CoursePurchase extends Model
         'user_id',
         'course_id',
         'amount_paid',
+        'original_price',
+        'discount_amount',
+        'discount_code_id',
         'status',
+        'purchased_at',
         'payment_id',
         'payment_method',
         'payment_details',
-        'purchased_at',
     ];
 
     /**
@@ -36,6 +40,8 @@ class CoursePurchase extends Model
     protected $casts = [
         'purchased_at' => 'datetime',
         'amount_paid' => 'decimal:2',
+        'original_price' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'payment_details' => 'array',
     ];
 
@@ -53,6 +59,14 @@ class CoursePurchase extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    /**
+     * Get the discount code used for the purchase.
+     */
+    public function discountCode(): BelongsTo
+    {
+        return $this->belongsTo(DiscountCode::class);
     }
 
     /**

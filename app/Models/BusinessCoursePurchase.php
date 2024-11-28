@@ -11,8 +11,9 @@ class BusinessCoursePurchase extends Model
     protected $fillable = [
         'business_id',
         'course_id',
-        'seats_purchased',
-        'price_per_seat',
+        'licenses_purchased',
+        'licenses_allocated',
+        'price_per_license',
         'total_amount',
         'stripe_payment_id',
         'purchased_at'
@@ -20,7 +21,7 @@ class BusinessCoursePurchase extends Model
 
     protected $casts = [
         'purchased_at' => 'datetime',
-        'price_per_seat' => 'decimal:2',
+        'price_per_license' => 'decimal:2',
         'total_amount' => 'decimal:2'
     ];
 
@@ -36,33 +37,39 @@ class BusinessCoursePurchase extends Model
 
     public function allocations(): HasMany
     {
-        return $this->hasMany(BusinessCourseAllocation::class);
+        return $this->hasMany(BusinessCourseAllocation::class, 'business_course_purchase_id');
     }
 
-    public function getAvailableSeatsAttribute(): int
+    public function getLicensesUsedAttribute(): int
     {
-        return $this->seats_purchased - $this->allocations()->count();
+        return $this->allocations()->count();
     }
 
-    public function hasAvailableSeats(): bool
+    public function getAvailableLicensesCount(): int
     {
-        return $this->available_seats > 0;
+        return $this->licenses_purchased - $this->licenses_allocated;
+    }
+
+    public function hasAvailableLicenses(): bool
+    {
+        return $this->licenses_allocated < $this->licenses_purchased;
     }
 
     public function getTotalPriceAttribute(): float
     {
-        return $this->total_amount ?? ($this->seats_purchased * $this->price_per_seat);
+        return $this->total_amount ?? ($this->licenses_purchased * $this->price_per_license);
     }
 
     public function allocateToEmployee(BusinessEmployee $employee, ?string $expiresAt = null): BusinessCourseAllocation
     {
-        if (!$this->hasAvailableSeats()) {
-            throw new \Exception('No available seats for this course purchase.');
+        if (!$this->hasAvailableLicenses()) {
+            throw new \Exception('No available licenses for this course purchase.');
         }
 
         return BusinessCourseAllocation::create([
             'business_course_purchase_id' => $this->id,
-            'business_employee_id' => $employee->id,
+            'user_id' => $employee->user_id,
+            'allocated_at' => now(),
             'expires_at' => $expiresAt
         ]);
     }

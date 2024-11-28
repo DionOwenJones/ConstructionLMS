@@ -22,7 +22,7 @@ return new class extends Migration
         Schema::create('business_course_allocations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('business_course_purchase_id')->constrained()->onDelete('cascade');
-            $table->foreignId('business_employee_id')->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->timestamp('allocated_at');
             $table->boolean('completed')->default(false);
             $table->timestamp('completed_at')->nullable();

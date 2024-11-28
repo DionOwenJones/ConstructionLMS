@@ -90,8 +90,8 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'text':
                 contentArea.innerHTML = `
                     <div class="space-y-2">
-                        <input type="hidden" name="sections[${sectionIndex}][type]" value="text">
-                        <textarea name="sections[${sectionIndex}][content]" rows="6" required
+                        <input type="hidden" name="sections[${sectionIndex}][blocks][0][type]" value="text">
+                        <textarea name="sections[${sectionIndex}][blocks][0][text_content]" rows="6" required
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
                                 placeholder="Enter your content here..."></textarea>
                     </div>`;
@@ -100,13 +100,16 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'video':
                 contentArea.innerHTML = `
                     <div class="space-y-4">
-                        <input type="hidden" name="sections[${sectionIndex}][type]" value="video">
+                        <input type="hidden" name="sections[${sectionIndex}][blocks][0][type]" value="video">
                         <div class="space-y-2">
                             <label class="block text-sm font-medium text-gray-700">YouTube Video URL</label>
-                            <input type="url" name="sections[${sectionIndex}][content]" required
+                            <input type="url" name="sections[${sectionIndex}][blocks][0][video_url]" required
                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
                                    placeholder="https://www.youtube.com/watch?v=..."
                                    onchange="previewYouTubeVideo(this, ${sectionIndex})">
+                            <input type="text" name="sections[${sectionIndex}][blocks][0][video_title]" required
+                                   class="mt-2 w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                                   placeholder="Enter video title">
                             <p class="text-sm text-gray-500">Paste a YouTube video URL (e.g., https://www.youtube.com/watch?v=xxxxx)</p>
                         </div>
                         <div id="video-preview-${sectionIndex}" class="hidden">
@@ -122,7 +125,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             case 'quiz':
                 contentArea.innerHTML = `
-                    <input type="hidden" name="sections[${sectionIndex}][type]" value="quiz">
+                    <input type="hidden" name="sections[${sectionIndex}][blocks][0][type]" value="quiz">
                     <div class="bg-white rounded-lg p-6 space-y-6">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-medium text-gray-900">Quiz Questions</h3>
@@ -144,10 +147,10 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'image':
                 contentArea.innerHTML = `
                     <div class="space-y-2">
-                        <input type="hidden" name="sections[${sectionIndex}][type]" value="image">
+                        <input type="hidden" name="sections[${sectionIndex}][blocks][0][type]" value="image">
                         <label class="block text-sm font-medium text-gray-700">Upload Image</label>
-                        <input type="file" name="sections[${sectionIndex}][content]" accept="image/*" required
-                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                        <input type="file" name="sections[${sectionIndex}][blocks][0][image_path]" accept="image/*" required
+                               class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
                     </div>`;
                 break;
         }
@@ -193,7 +196,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const newQuestionIndex = questionIndex ?? questionsContainer.children.length;
         
         const questionHTML = `
-            <div class="quiz-question bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+            <div class="quiz-question bg-white rounded-lg border border-gray-200 p-6 space-y-4" data-question-index="${newQuestionIndex}">
                 <div class="flex justify-between items-start">
                     <h4 class="text-lg font-medium text-gray-900">Question ${newQuestionIndex + 1}</h4>
                     <button type="button" onclick="removeQuizQuestion(this)" class="text-gray-400 hover:text-red-500">
@@ -207,61 +210,41 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Question Text</label>
                         <input type="text" 
-                               name="sections[${sectionIndex}][quiz][questions][]" 
+                               name="sections[${sectionIndex}][blocks][0][quiz_data][questions][${newQuestionIndex}][text]" 
                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
                                placeholder="Enter your question here"
                                required>
                     </div>
 
                     <div class="space-y-2">
-                        <label class="block text-sm font-medium text-gray-700">Answer Options</label>
-                        <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <label class="block text-sm font-medium text-gray-700">Answer Options</label>
+                            <button type="button" 
+                                    onclick="addOption(${sectionIndex}, ${newQuestionIndex})"
+                                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-orange-700 bg-orange-100 hover:bg-orange-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                                Add Option
+                            </button>
+                        </div>
+                        <div class="space-y-2" id="options-container-${sectionIndex}-${newQuestionIndex}">
+                            <!-- Initial option -->
                             <div class="flex items-center space-x-2">
                                 <input type="text" 
-                                       name="sections[${sectionIndex}][quiz][answers][${newQuestionIndex}][]" 
+                                       name="sections[${sectionIndex}][blocks][0][quiz_data][questions][${newQuestionIndex}][options][]" 
                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
                                        placeholder="Option 1"
                                        required>
                                 <input type="radio" 
-                                       name="sections[${sectionIndex}][quiz][correct][${newQuestionIndex}]" 
+                                       name="sections[${sectionIndex}][blocks][0][quiz_data][questions][${newQuestionIndex}][correct_answer]" 
                                        value="0"
                                        required>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <input type="text" 
-                                       name="sections[${sectionIndex}][quiz][answers][${newQuestionIndex}][]" 
-                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
-                                       placeholder="Option 2"
-                                       required>
-                                <input type="radio" 
-                                       name="sections[${sectionIndex}][quiz][correct][${newQuestionIndex}]" 
-                                       value="1"
-                                       required>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <input type="text" 
-                                       name="sections[${sectionIndex}][quiz][answers][${newQuestionIndex}][]" 
-                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
-                                       placeholder="Option 3"
-                                       required>
-                                <input type="radio" 
-                                       name="sections[${sectionIndex}][quiz][correct][${newQuestionIndex}]" 
-                                       value="2"
-                                       required>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <input type="text" 
-                                       name="sections[${sectionIndex}][quiz][answers][${newQuestionIndex}][]" 
-                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
-                                       placeholder="Option 4"
-                                       required>
-                                <input type="radio" 
-                                       name="sections[${sectionIndex}][quiz][correct][${newQuestionIndex}]" 
-                                       value="3"
-                                       required>
+                                <button type="button" onclick="removeOption(this)" class="text-gray-400 hover:text-red-500">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
-                        <p class="text-sm text-gray-500">Select the radio button next to the correct answer.</p>
+                        <p class="text-sm text-gray-500 mt-2">Select the radio button next to the correct answer.</p>
                     </div>
                 </div>
             </div>
@@ -270,11 +253,91 @@ document.addEventListener('DOMContentLoaded', function() {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = questionHTML;
         questionsContainer.appendChild(tempDiv.firstElementChild);
+    };
+
+    window.removeQuizQuestion = function(button) {
+        const questionElement = button.closest('.quiz-question');
+        if (questionElement.parentElement.children.length > 1) {
+            questionElement.remove();
+            updateQuestionNumbers(questionElement.parentElement);
+        }
+    };
+
+    window.addOption = function(sectionIndex, questionIndex) {
+        const optionsContainer = document.getElementById(`options-container-${sectionIndex}-${questionIndex}`);
+        const optionIndex = optionsContainer.children.length;
+        
+        const optionHTML = `
+            <div class="flex items-center space-x-2">
+                <input type="text" 
+                       name="sections[${sectionIndex}][blocks][0][quiz_data][questions][${questionIndex}][options][]" 
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                       placeholder="Option ${optionIndex + 1}"
+                       required>
+                <input type="radio" 
+                       name="sections[${sectionIndex}][blocks][0][quiz_data][questions][${questionIndex}][correct_answer]" 
+                       value="${optionIndex}"
+                       required>
+                <button type="button" onclick="removeOption(this)" class="text-gray-400 hover:text-red-500">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = optionHTML;
+        optionsContainer.appendChild(tempDiv.firstElementChild);
+        updateOptionValues(optionsContainer);
+    };
+
+    window.removeOption = function(button) {
+        const optionElement = button.closest('.flex');
+        const optionsContainer = optionElement.parentElement;
+        if (optionsContainer.children.length > 1) {
+            optionElement.remove();
+            updateOptionValues(optionsContainer);
+        }
+    };
+
+    function updateOptionValues(optionsContainer) {
+        const options = optionsContainer.querySelectorAll('.flex');
+        options.forEach((option, index) => {
+            const radio = option.querySelector('input[type="radio"]');
+            radio.value = index;
+        });
     }
 
-    function removeQuizQuestion(button) {
-        const questionDiv = button.closest('.quiz-question');
-        questionDiv.remove();
+    function updateQuestionNumbers(questionsContainer) {
+        const questions = questionsContainer.querySelectorAll('.quiz-question');
+        questions.forEach((question, index) => {
+            // Update question number display
+            const questionTitle = question.querySelector('h4');
+            questionTitle.textContent = `Question ${index + 1}`;
+
+            // Update question index in data attribute
+            question.dataset.questionIndex = index;
+
+            // Update form field names
+            const textInput = question.querySelector('input[type="text"]');
+            const optionsContainer = question.querySelector('[id^="options-container-"]');
+            const sectionIndex = parseInt(optionsContainer.id.split('-')[2]);
+
+            // Update question text input name
+            textInput.name = `sections[${sectionIndex}][blocks][0][quiz_data][questions][${index}][text]`;
+
+            // Update options
+            const options = optionsContainer.querySelectorAll('.flex');
+            options.forEach((option, optionIndex) => {
+                const optionInput = option.querySelector('input[type="text"]');
+                const radioInput = option.querySelector('input[type="radio"]');
+
+                optionInput.name = `sections[${sectionIndex}][blocks][0][quiz_data][questions][${index}][options][]`;
+                radioInput.name = `sections[${sectionIndex}][blocks][0][quiz_data][questions][${index}][correct_answer]`;
+                radioInput.value = optionIndex;
+            });
+        });
     }
 
     // Initialize the add section button

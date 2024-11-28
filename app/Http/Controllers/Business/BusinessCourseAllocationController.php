@@ -8,6 +8,7 @@ use App\Models\Course;
 use App\Models\User;
 use App\Models\BusinessCourseAllocation;
 use App\Models\BusinessCoursePurchase;
+use App\Notifications\CourseAllocationNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -51,8 +52,8 @@ class BusinessCourseAllocationController extends Controller
                     'course_id' => $validated['course_id']
                 ],
                 [
-                    'seats_purchased' => 1,
-                    'price_per_seat' => Course::find($validated['course_id'])->price,
+                    'licenses_purchased' => 1,
+                    'price_per_license' => Course::find($validated['course_id'])->price,
                     'purchased_at' => now()
                 ]
             );
@@ -64,6 +65,9 @@ class BusinessCourseAllocationController extends Controller
                 'allocated_at' => now(),
                 'expires_at' => $validated['expires_at'] ?? null
             ]);
+
+            // Send email notification to the user
+            $user->notify(new CourseAllocationNotification($purchase->course, $business));
         });
 
         return redirect()->route('business.allocations.index')

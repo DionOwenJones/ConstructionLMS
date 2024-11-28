@@ -4,20 +4,30 @@ namespace App\Http\Controllers\Business;
 
 use App\Http\Controllers\Controller;
 use App\Models\Business;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class BusinessSetupController extends Controller
 {
     public function __construct()
     {
         $this->middleware('auth');
+        $this->middleware('role:business')->except(['show', 'store']);
     }
 
     public function show()
     {
-        // If user already has a business, redirect to dashboard
-        if (Auth::user()->business) {
+        $user = Auth::user();
+        
+        if (!$user->isBusiness()) {
+            return redirect()->route('dashboard');
+        }
+
+        $business = Business::where('user_id', $user->id)->first();
+
+        if ($business && $business->name) {
             return redirect()->route('business.dashboard');
         }
 
@@ -26,26 +36,36 @@ class BusinessSetupController extends Controller
 
     public function store(Request $request)
     {
-        // Validate request
-        $validated = $request->validate([
-            'company_name' => 'required|string|max:255',
+        $user = Auth::user();
+        
+        if (!$user->isBusiness()) {
+            return redirect()->route('dashboard');
+        }
+
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
         ]);
 
-        // Create business
-        $business = Business::create([
-            'company_name' => $validated['company_name'],
-            'owner_id' => Auth::id(),
-            'user_id' => Auth::id(), // Adding both owner_id and user_id during transition
-        ]);
+        DB::beginTransaction();
 
-        // Assign role to user
-        Auth::user()->assignRole('business');
+        try {
+            $business = Business::updateOrCreate(
+                ['user_id' => Auth::id()],
+                [
+                    'name' => $request->name,
+                    'email' => $request->email,
+                    'company_name' => $request->name,
+                ]
+            );
 
-        // Update user's business relationship
-        Auth::user()->business()->associate($business);
-        Auth::user()->save();
+            DB::commit();
 
-        return redirect()->route('business.dashboard')
-            ->with('success', 'Business profile created successfully!');
+            return redirect()->route('business.dashboard')
+                ->with('success', 'Business profile setup completed successfully!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'There was an error setting up your business profile. Please try again.');
+        }
     }
 }

@@ -31,7 +31,7 @@ class BusinessCoursePurchaseController extends Controller
     {
         $validated = $request->validate([
             'course_id' => 'required|exists:courses,id',
-            'seats_purchased' => 'required|integer|min:1'
+            'licenses_purchased' => 'required|integer|min:1'
         ]);
 
         try {
@@ -40,19 +40,19 @@ class BusinessCoursePurchaseController extends Controller
             $purchase = BusinessCoursePurchase::create([
                 'business_id' => Auth::user()->business->id,
                 'course_id' => $validated['course_id'],
-                'seats_purchased' => $validated['seats_purchased'],
-                'seats_allocated' => 0,
+                'licenses_purchased' => $validated['licenses_purchased'],
+                'licenses_allocated' => 0,
                 'purchased_at' => now()
             ]);
 
             DB::commit();
 
             return redirect()->route('business.purchases.index')
-                ->with('success', "Successfully purchased {$validated['seats_purchased']} seats");
+                ->with('success', "Successfully purchased {$validated['licenses_purchased']} licenses");
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error purchasing course seats: ' . $e->getMessage());
+            return back()->with('error', 'Error purchasing course licenses: ' . $e->getMessage());
         }
     }
 
@@ -64,8 +64,8 @@ class BusinessCoursePurchaseController extends Controller
 
     public function destroy(BusinessCoursePurchase $purchase)
     {
-        if ($purchase->seats_allocated > 0) {
-            return back()->with('error', 'Cannot delete purchase with allocated seats');
+        if ($purchase->licenses_allocated > 0) {
+            return back()->with('error', 'Cannot delete purchase with allocated licenses');
         }
 
         $purchase->delete();

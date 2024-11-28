@@ -30,7 +30,7 @@ class BusinessAccess
 
         // Check if user has a business record
         if (!$user->business) {
-            return redirect()->route('business.setup')
+            return redirect()->route('profile.upgrade.business.setup')
                 ->with('warning', 'Please set up your business profile first.');
         }
 

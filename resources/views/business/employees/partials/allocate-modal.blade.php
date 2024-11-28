@@ -17,7 +17,7 @@
                             <option value="">Choose a course...</option>
                             @foreach($availableCourses as $course)
                                 <option value="{{ $course['id'] }}">
-                                    {{ $course['name'] }} ({{ $course['available_seats'] }} seats available)
+                                    {{ $course['name'] }} ({{ $course['available_seats'] }} licenses available)
                                 </option>
                             @endforeach
                         </select>

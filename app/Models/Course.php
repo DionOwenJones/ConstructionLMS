@@ -7,7 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Course extends Model
 {
@@ -23,11 +27,17 @@ class Course extends Model
         'stripe_price_id',
         'stripe_product_id',
         'is_free',
-        'business_id'
+        'business_id',
+        'slug',
+        'has_expiry',
+        'validity_months'
     ];
 
     protected $casts = [
         'is_free' => 'boolean',
+        'price' => 'decimal:2',
+        'has_expiry' => 'boolean',
+        'validity_months' => 'integer'
     ];
 
     /**
@@ -36,6 +46,14 @@ class Course extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the assessment associated with the course.
+     */
+    public function assessments(): HasMany
+    {
+        return $this->hasMany(Assessment::class);
     }
 
     /**
@@ -65,6 +83,14 @@ class Course extends Model
     }
 
     /**
+     * Get the orders for this course.
+     */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    /**
      * Get the purchases for this course.
      */
     public function purchases()
@@ -81,13 +107,31 @@ class Course extends Model
     }
 
     /**
-     * Check if a user has purchased this course.
+     * Check if a user has purchased this course or has it allocated through a business.
      */
-    public function isPurchasedBy(User $user): bool
+    public function isPurchasedBy(?User $user): bool
     {
-        return $this->purchases()
+        // If no user (guest), they haven't purchased
+        if (!$user) {
+            return false;
+        }
+
+        // Check for direct purchase
+        $directPurchase = $this->purchases()
             ->where('user_id', $user->id)
             ->where('status', 'completed')
+            ->exists();
+
+        if ($directPurchase) {
+            return true;
+        }
+
+        // Check for business allocation
+        return BusinessCourseAllocation::query()
+            ->whereHas('purchase', function ($query) {
+                $query->where('course_id', $this->id);
+            })
+            ->where('user_id', $user->id)
             ->exists();
     }
 
@@ -99,7 +143,7 @@ class Course extends Model
         if ($this->is_free || $this->price == 0) {
             return 'Free';
         }
-        return '$' . number_format($this->price, 2);
+        return '£' . number_format($this->price, 2);
     }
 
     /**
@@ -108,7 +152,7 @@ class Course extends Model
     public function businesses()
     {
         return $this->belongsToMany(Business::class, 'business_course_purchases')
-            ->withPivot(['seats_purchased', 'price_per_seat'])
+            ->withPivot(['licenses_purchased', 'price_per_license'])
             ->withTimestamps();
     }
 
@@ -266,6 +310,14 @@ class Course extends Model
     }
 
     /**
+     * Get the certificate for a specific user.
+     */
+    public function certificate()
+    {
+        return $this->hasOne(Certificate::class)->where('user_id', auth()->id());
+    }
+
+    /**
      * Check if all sections are completed by the user.
      */
     public function isCompletedByUserOld(User $user): bool
@@ -304,5 +356,149 @@ class Course extends Model
     {
         $enrollment = $this->users()->where('user_id', $user->id)->first();
         return $enrollment && $enrollment->pivot->completed;
+    }
+
+    /**
+     * Calculate the expiry date for the course.
+     */
+    public function calculateExpiryDate()
+    {
+        if (!$this->has_expiry) {
+            return null;
+        }
+        return now()->addMonths($this->validity_months);
+    }
+
+    /**
+     * Get the days until expiry for a certificate.
+     */
+    public function getDaysUntilExpiry($certificateDate)
+    {
+        if (!$this->has_expiry || !$this->expiry_months || !$certificateDate) {
+            return null;
+        }
+
+        $expiryDate = Carbon::parse($certificateDate)->addMonths($this->expiry_months);
+        $now = Carbon::now();
+
+        if ($now->gt($expiryDate)) {
+            return 0;
+        }
+
+        return $now->diffInDays($expiryDate);
+    }
+
+    /**
+     * Check if a certificate has expired.
+     */
+    public function isExpired($certificateDate)
+    {
+        if (!$this->has_expiry || !$certificateDate) {
+            return false;
+        }
+        
+        $expiryDate = $certificateDate->copy()->addMonths($this->validity_months);
+        return now()->greaterThan($expiryDate);
+    }
+
+    /**
+     * Check if a user is enrolled in this course
+     */
+    public function isUserEnrolled(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        return $this->isPurchasedBy($user);
+    }
+
+    /**
+     * Get the sections that a user can access
+     */
+    public function getAccessibleSections(?User $user)
+    {
+        $query = $this->sections()->orderBy('order');
+        
+        if (!$this->isUserEnrolled($user)) {
+            $query->take(2); // Only first 2 sections for non-enrolled users
+        }
+        
+        return $query;
+    }
+
+    /**
+     * Get the full image URL
+     */
+    public function getImageUrlAttribute()
+    {
+        if (!$this->image) {
+            return asset('images/placeholder.jpg');
+        }
+
+        // Make sure the image path starts with courses/
+        $imagePath = Str::startsWith($this->image, 'courses/') 
+            ? $this->image 
+            : 'courses/' . $this->image;
+
+        // Check if the file exists in the storage path
+        $path = storage_path('app/public/' . $imagePath);
+        
+        // Debug the path and URL
+        \Log::info('Course image path check:', [
+            'original_image' => $this->image,
+            'image_path' => $imagePath,
+            'full_path' => $path,
+            'exists' => file_exists($path),
+            'url' => url('storage/' . $imagePath),
+            'asset_url' => asset('storage/' . $imagePath)
+        ]);
+
+        if (!file_exists($path)) {
+            return asset('images/placeholder.jpg');
+        }
+
+        // Return the URL using asset helper instead of Storage facade
+        return asset('storage/' . $imagePath);
+    }
+
+    /**
+     * Check if a user can generate a certificate for this course.
+     */
+    public function canGenerateCertificate($userId): bool
+    {
+        // If course has no assessment, allow certificate generation
+        if (!$this->assessments()->exists()) {
+            return true;
+        }
+
+        // Check if user has passed all assessments
+        foreach ($this->assessments as $assessment) {
+            if (!$assessment->hasPassedAttempt($userId)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if a user can access this course.
+     */
+    public function canAccessCourse($userId): bool
+    {
+        // If course has no assessment, allow access
+        if (!$this->assessments()->exists()) {
+            return true;
+        }
+
+        // Check if user has remaining attempts for any assessment
+        foreach ($this->assessments as $assessment) {
+            if ($assessment->getRemainingAttemptsForUser($userId) <= 0 && !$assessment->hasPassedAttempt($userId)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

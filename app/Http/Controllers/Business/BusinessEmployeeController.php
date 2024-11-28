@@ -31,14 +31,14 @@ class BusinessEmployeeController extends Controller
 
         $availableCourses = BusinessCoursePurchase::where('business_id', $business->id)
             ->withCount('allocations')
-            ->having('seats_purchased', '>', 'allocations_count')
+            ->having('licenses_purchased', '>', 'allocations_count')
             ->with('course')
             ->get()
             ->map(function($purchase) {
                 return [
                     'id' => $purchase->course->id,
                     'name' => $purchase->course->name,
-                    'available_seats' => $purchase->seats_purchased - $purchase->allocations_count
+                    'available_licenses' => $purchase->licenses_purchased - $purchase->allocations_count
                 ];
             });
 
@@ -166,8 +166,10 @@ class BusinessEmployeeController extends Controller
 
         DB::transaction(function () use ($employee) {
             // Remove course allocations
-            BusinessCourseAllocation::where('user_id', $employee->user_id)
-                ->where('business_id', $employee->business_id)
+            BusinessCourseAllocation::whereHas('purchase', function($query) use ($employee) {
+                    $query->where('business_id', $employee->business_id);
+                })
+                ->where('user_id', $employee->user_id)
                 ->delete();
 
             // Remove employee record

@@ -91,9 +91,10 @@
                             </span>
                             
                             @if(Auth::user()->role === \App\Models\User::ROLE_USER)
-                                <form method="POST" action="{{ route('profile.upgrade.business') }}" class="mt-4">
+                                <form method="POST" action="{{ route('profile.upgrade.business.legacy') }}" class="mt-4" id="upgradeForm">
                                     @csrf
-                                    <button type="submit"
+                                    <button type="button"
+                                        onclick="confirmUpgrade()"
                                         class="inline-flex items-center px-4 py-2 bg-orange-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-orange-700 focus:bg-orange-700 active:bg-orange-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition ease-in-out duration-150">
                                         Upgrade to Business Account
                                     </button>
@@ -102,6 +103,46 @@
                                     Upgrade to a Business account to manage employees and purchase courses for your team.
                                 </p>
                             @endif
+
+                            <!-- Confirmation Modals -->
+                            <!-- Upgrade Modal -->
+                            <div id="confirmationModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden" style="z-index: 100;">
+                                <div class="flex items-center justify-center min-h-screen">
+                                    <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+                                        <h3 class="text-lg font-medium text-gray-900 mb-4">Confirm Account Upgrade</h3>
+                                        <p class="text-sm text-gray-600 mb-6">
+                                            <strong class="text-red-600">Important:</strong> Upgrading to a Business Account will:
+                                            <ul class="list-disc ml-5 mt-2">
+                                                <li>Convert your account to a Business Account</li>
+                                                <li>Remove all your currently enrolled courses</li>
+                                                <li>You'll need to purchase courses as a business after upgrade</li>
+                                            </ul>
+                                        </p>
+                                        <div class="flex justify-end gap-4">
+                                            <button type="button" onclick="hideConfirmationModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                                                Cancel
+                                            </button>
+                                            <button type="button" onclick="submitUpgradeForm()" class="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700">
+                                                Confirm Upgrade
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <script>
+                                function confirmUpgrade() {
+                                    document.getElementById('confirmationModal').classList.remove('hidden');
+                                }
+
+                                function hideConfirmationModal() {
+                                    document.getElementById('confirmationModal').classList.add('hidden');
+                                }
+
+                                function submitUpgradeForm() {
+                                    document.getElementById('upgradeForm').submit();
+                                }
+                            </script>
                         </div>
                     </div>
                 @endif
@@ -110,3 +151,19 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function confirmUpgrade() {
+        document.getElementById('confirmationModal').classList.remove('hidden');
+    }
+
+    function hideConfirmationModal() {
+        document.getElementById('confirmationModal').classList.add('hidden');
+    }
+
+    function submitUpgradeForm() {
+        document.getElementById('upgradeForm').submit();
+    }
+</script>
+@endpush

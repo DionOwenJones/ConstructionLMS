@@ -7,7 +7,7 @@
             <div class="flex-shrink-0 flex items-center w-1/4">
                 <a href="{{ route('business.dashboard') }}">
                     <span class="text-xl font-bold text-orange-600 truncate">
-                        hi
+                        {{ Auth::user()->business ? Auth::user()->business->company_name : 'Business Dashboard' }}
                     </span>
                 </a>
             </div>

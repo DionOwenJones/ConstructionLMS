@@ -20,7 +20,7 @@ class BusinessCertificateController extends Controller
     {
         try {
             // Get the business for the authenticated user
-            $business = Business::where('owner_id', Auth::id())->firstOrFail();
+            $business = Business::where('user_id', Auth::id())->firstOrFail();
             
             $employees = $business->employees()
                 ->with(['user' => function($query) {
@@ -65,7 +65,7 @@ class BusinessCertificateController extends Controller
     {
         try {
             // Get the business for the authenticated user
-            $business = Business::where('owner_id', Auth::id())->firstOrFail();
+            $business = Business::where('user_id', Auth::id())->firstOrFail();
 
             // Verify the employee belongs to the business
             $employee = BusinessEmployee::where('id', $employeeId)
@@ -108,7 +108,7 @@ class BusinessCertificateController extends Controller
     {
         try {
             // Get the business for the authenticated user
-            $business = Business::where('owner_id', Auth::id())->firstOrFail();
+            $business = Business::where('user_id', Auth::id())->firstOrFail();
 
             // Verify the employee belongs to the business
             $employee = BusinessEmployee::where('id', $employeeId)
@@ -131,16 +131,16 @@ class BusinessCertificateController extends Controller
             $data = [
                 'course' => $course,
                 'user' => $employee->user,
-                'completed_at' => Carbon::parse($enrollment->completed_at)->format('F d, Y'),
+                'completedAt' => Carbon::parse($enrollment->completed_at),
                 'certificate_number' => sprintf('CERT-%s-%s-%s', 
                     strtoupper(substr($employee->user->name, 0, 3)),
                     $course->id,
                     date('Ymd', strtotime($enrollment->completed_at))
-                ),
-                'business_name' => $business->company_name
+                )
             ];
 
-            $pdf = PDF::loadView('certificates.business-template', $data);
+            $pdf = PDF::loadView('certificates.course', $data)
+                ->setPaper('a4', 'landscape');
             
             return $pdf->download(sprintf('certificate-%s-%s.pdf', 
                 Str::slug($employee->user->name),

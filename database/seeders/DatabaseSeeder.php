@@ -63,8 +63,9 @@ class DatabaseSeeder extends Seeder
 
             // Then create business and link to owner
             Business::create([
-                'company_name' => $business['company'],
-                'owner_id' => $businessOwner->id
+                'name' => $business['company'],
+                'user_id' => $businessOwner->id,
+                'email' => $business['email']
             ]);
         }
 
@@ -99,11 +100,15 @@ class DatabaseSeeder extends Seeder
         // Run the Course Seeder
         $this->call(CourseSeeder::class);
 
+        // Run the Discount Code Seeder
+        $this->call(DiscountCodeSeeder::class);
+
         // Output seeding completion message
         $this->command->info('Database seeded with:');
         $this->command->info('- ' . User::where('role', 'admin')->count() . ' admin users');
         $this->command->info('- ' . User::where('role', 'business')->count() . ' business users');
         $this->command->info('- ' . User::where('role', 'user')->count() . ' regular users');
         $this->command->info('- ' . Business::count() . ' businesses');
+        $this->command->info('- ' . \App\Models\DiscountCode::count() . ' discount codes');
     }
 }

@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Business;
 use App\Models\User;
 use App\Models\BusinessCourseAllocation;
+use App\Models\Course;
+use App\Models\BusinessCoursePurchase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class BusinessEmployeeController extends Controller
 {
@@ -39,15 +43,50 @@ class BusinessEmployeeController extends Controller
     public function allocateCourse(Request $request, User $employee)
     {
         $request->validate([
-            'course_id' => ['required', 'exists:courses,id'],
+            'course_id' => 'required|exists:courses,id'
         ]);
 
-        BusinessCourseAllocation::create([
-            'business_employee_id' => $employee->id,
-            'course_id' => $request->course_id,
-            'allocated_at' => now(),
-        ]);
+        $course = Course::findOrFail($request->course_id);
+        $business = auth()->user()->business;
 
-        return back()->with('success', 'Course allocated successfully.');
+        // Check if employee already has this course allocated
+        if ($employee->courses()->where('course_id', $course->id)->exists()) {
+            return redirect()->back()->with('error', 'Course is already allocated to this employee.');
+        }
+
+        DB::transaction(function () use ($employee, $course, $business) {
+            // Create a purchase record
+            $purchase = BusinessCoursePurchase::create([
+                'business_id' => $business->id,
+                'course_id' => $course->id,
+                'quantity' => 1,
+                'price' => $course->price,
+                'total' => $course->price,
+                'purchased_at' => now()
+            ]);
+
+            // Create business course allocation record
+            BusinessCourseAllocation::create([
+                'business_course_purchase_id' => $purchase->id,
+                'user_id' => $employee->id,
+                'allocated_at' => now()
+            ]);
+
+            // Attach course to user
+            $employee->courses()->attach($course->id, [
+                'business_id' => $business->id,
+                'course_purchase_id' => $purchase->id
+            ]);
+
+            if (config('mail.enabled')) {
+                try {
+                    Mail::to($employee->email)->send(new CourseAllocated($course, $employee, $business->name));
+                } catch (\Exception $e) {
+                    Log::error('Failed to send course allocation email: ' . $e->getMessage());
+                }
+            }
+        });
+
+        return redirect()->back()->with('success', 'Course allocated successfully.');
     }
 }

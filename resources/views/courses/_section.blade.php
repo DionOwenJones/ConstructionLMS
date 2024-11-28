@@ -31,8 +31,33 @@
 
                 @case('quiz')
                     @if(isset($sectionContent['data']['questions']))
-                        <div id="quiz-section-{{ $section->id }}" class="py-4">
-                            <x-quiz-player :quizData="$sectionContent['data']" />
+                        <div id="quiz-section-{{ $section->id }}" class="py-4 space-y-6">
+                            @foreach($sectionContent['data']['questions'] as $index => $question)
+                                <div class="quiz-question bg-white rounded-lg shadow-sm p-6 space-y-4">
+                                    <h3 class="text-lg font-medium text-gray-900">Question {{ $index + 1 }}</h3>
+                                    <p class="text-gray-700">{{ $question['text'] }}</p>
+                                    
+                                    <div class="space-y-3">
+                                        @foreach($question['options'] as $optionIndex => $option)
+                                            <label class="flex items-center space-x-3">
+                                                <input type="radio" 
+                                                       name="quiz_{{ $section->id }}_question_{{ $index }}" 
+                                                       value="{{ $optionIndex }}"
+                                                       class="text-orange-600 focus:ring-orange-500 h-4 w-4 border-gray-300">
+                                                <span class="text-gray-700">{{ $option }}</span>
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endforeach
+                            
+                            <div class="mt-6">
+                                <button type="button" 
+                                        onclick="submitQuiz({{ $section->id }})"
+                                        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                                    Submit Quiz
+                                </button>
+                            </div>
                         </div>
                     @else
                         <div class="text-gray-500 italic">

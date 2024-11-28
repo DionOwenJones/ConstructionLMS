@@ -10,17 +10,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Business extends Model
 {
     protected $fillable = [
+        'user_id',
+        'name',
         'company_name',
-        'owner_id',
-        'address',
-        'phone',
-        'website',
-        'description'
+        'email',
+        'is_setup_complete'
+    ];
+
+    protected $casts = [
+        'is_setup_complete' => 'boolean'
     ];
 
     public function owner(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'owner_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     // Relationship to employees

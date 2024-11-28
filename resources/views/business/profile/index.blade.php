@@ -130,15 +130,101 @@
                 </div>
 
                 <div class="pt-5">
-                    <div class="flex justify-end">
-                        <button type="submit"
-                                class="inline-flex justify-center rounded-md border border-transparent bg-orange-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
-                            Save Changes
-                        </button>
+                    <div class="flex justify-between items-center">
+                        <!-- Downgrade Account Section -->
+                        <form action="{{ route('profile.upgrade.business.downgrade') }}" method="POST" class="inline">
+                            @csrf
+                            <button type="button"
+                                onclick="showDowngradeModal()"
+                                class="inline-flex items-center px-4 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                                Downgrade to User Account
+                            </button>
+                            <p class="mt-1 text-sm text-gray-500">
+                                Warning: Downgrading will remove your business profile and all associated data
+                            </p>
+                        </form>
+
+                        <!-- Save Changes Button -->
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                                Save Changes
+                            </button>
+                        </div>
                     </div>
                 </div>
             </form>
         </div>
+
+        <!-- Downgrade Confirmation Modal -->
+        <div id="downgradeModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden" style="z-index: 100;">
+            <div class="flex items-center justify-center min-h-screen">
+                <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Confirm Account Downgrade</h3>
+                    <p class="text-sm text-gray-600 mb-6">
+                        <strong class="text-red-600">Warning:</strong> Downgrading to a User Account will:
+                        <ul class="list-disc ml-5 mt-2">
+                            <li>Remove your business profile</li>
+                            <li>Delete all employee associations</li>
+                            <li>Cancel all business course purchases</li>
+                            <li>Convert your account back to a regular user</li>
+                        </ul>
+                        <br>
+                        This action cannot be undone.
+                    </p>
+                    <div class="flex justify-end space-x-4">
+                        <button type="button"
+                            onclick="hideDowngradeModal()"
+                            class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            form="downgradeForm"
+                            class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            Confirm Downgrade
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden form for downgrade submission -->
+        <form id="downgradeForm" action="{{ route('profile.upgrade.business.downgrade') }}" method="POST" class="hidden">
+            @csrf
+        </form>
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get the button and modal elements
+        const downgradeButton = document.querySelector('[onclick="showDowngradeModal()"]');
+        const modal = document.getElementById('downgradeModal');
+        const cancelButton = document.querySelector('[onclick="hideDowngradeModal()"]');
+
+        // Show modal function
+        window.showDowngradeModal = function() {
+            modal.classList.remove('hidden');
+        };
+
+        // Hide modal function
+        window.hideDowngradeModal = function() {
+            modal.classList.add('hidden');
+        };
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                hideDowngradeModal();
+            }
+        });
+
+        // Prevent modal from closing when clicking inside the modal content
+        modal.querySelector('.bg-white').addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
+    });
+</script>
+@endpush

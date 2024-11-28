@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Business;
 use App\Models\BusinessCoursePurchase;
 use App\Models\BusinessCourseAllocation;
+use App\Models\BusinessEmployee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,7 @@ class BusinessCourseManagementController extends Controller
 
     protected function getBusiness()
     {
-        $business = Business::where('owner_id', Auth::id())->first();
+        $business = Business::where('user_id', Auth::id())->first();
         
         if (!$business) {
             return null;
@@ -56,9 +57,9 @@ class BusinessCourseManagementController extends Controller
         }
 
         $courses = Course::where('status', 'published')
-            ->withCount(['businessPurchases as total_seats' => function($query) use ($business) {
+            ->withCount(['businessPurchases as total_licenses' => function($query) use ($business) {
                 $query->where('business_id', $business->id)
-                    ->select(DB::raw('SUM(seats_purchased)'));
+                    ->select(DB::raw('SUM(licenses_purchased)'));
             }])
             ->latest()
             ->paginate(10);
@@ -67,9 +68,37 @@ class BusinessCourseManagementController extends Controller
     }
 
     /**
-     * Display purchased courses and their allocations
+     * Display all course purchases
      */
     public function purchases()
+    {
+        $business = $this->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('warning', 'Please set up your business profile first.');
+        }
+
+        $purchases = $business->coursePurchases()
+            ->with(['course'])
+            ->withCount([
+                'allocations as used_licenses',
+                'allocations as completed_licenses' => function($query) {
+                    $query->whereHas('user.completedCourses', function($q) {
+                        $q->wherePivot('completed', true);
+                    });
+                }
+            ])
+            ->latest()
+            ->paginate(10);
+
+        return view('business.courses.purchases', compact('purchases'));
+    }
+
+    /**
+     * Display purchased courses and their allocations
+     */
+    public function purchased()
     {
         $business = $this->getBusiness();
         
@@ -84,13 +113,13 @@ class BusinessCourseManagementController extends Controller
             ->latest()
             ->paginate(10);
 
-        return view('business.courses.purchases', compact('purchases'));
+        return view('business.courses.purchased', compact('purchases'));
     }
 
     /**
-     * Show the purchase form for a course
+     * Show course details
      */
-    public function showPurchaseForm(Course $course)
+    public function show(Course $course)
     {
         $business = $this->getBusiness();
         
@@ -99,8 +128,29 @@ class BusinessCourseManagementController extends Controller
                 ->with('warning', 'Please set up your business profile first.');
         }
 
+        $purchase = BusinessCoursePurchase::where('business_id', $business->id)
+            ->where('course_id', $course->id)
+            ->with(['allocations.user'])
+            ->first();
+
+        return view('business.courses.show', compact('course', 'purchase'));
+    }
+
+    /**
+     * Show the purchase form for a course
+     */
+    public function purchase(Course $course)
+    {
+        $business = $this->getBusiness();
+        
+        if (!$business) {
+            return redirect()->route('business.setup')
+                ->with('error', 'Please set up your business profile before purchasing courses.');
+        }
+
         return view('business.courses.purchase', [
             'course' => $course,
+            'business' => $business,
             'stripeKey' => config('services.stripe.key')
         ]);
     }
@@ -108,124 +158,228 @@ class BusinessCourseManagementController extends Controller
     /**
      * Process the course purchase with Stripe
      */
-    public function purchaseCourse(Request $request, Course $course)
+    public function processPurchase(Request $request, Course $course)
     {
         try {
-            DB::beginTransaction();
-
-            $request->validate([
-                'seats' => ['required', 'integer', 'min:1'],
-                'payment_method' => ['required', 'string']
-            ]);
-
             $business = $this->getBusiness();
             
             if (!$business) {
-                throw new \Exception('Business profile not found.');
+                return response()->json([
+                    'error' => 'Business profile not found.'
+                ], 400);
             }
 
-            $seats = $request->seats;
-            $amount = $course->price * $seats;
-            $amountInCents = (int)($amount * 100);
+            // Log the incoming request data
+            Log::info('Business payment request received', [
+                'business_id' => $business->id,
+                'course_id' => $course->id,
+                'request_data' => $request->all()
+            ]);
 
-            // Create or get Stripe Customer for the business
+            // Validate request
+            $request->validate([
+                'licenses' => ['required', 'integer', 'min:1'],
+                'payment_method_id' => ['required', 'string'],
+                'discount_code' => ['nullable', 'string', 'exists:discount_codes,code']
+            ]);
+
+            // Calculate amount in cents
+            $licenses = $request->licenses;
+            $amount = $course->price * $licenses;
+            $discountCode = null;
+
+            // Apply discount if code is provided
+            if ($request->filled('discount_code')) {
+                $discountCode = \App\Models\DiscountCode::where('code', $request->discount_code)
+                    ->where('is_active', true)
+                    ->first();
+                
+                if ($discountCode && $discountCode->isValid()) {
+                    $discountAmount = $amount * ($discountCode->discount_percentage / 100);
+                    $amount -= $discountAmount;
+                    
+                    Log::info('Discount applied to business purchase', [
+                        'business_id' => $business->id,
+                        'course_id' => $course->id,
+                        'discount_code' => $discountCode->code,
+                        'discount_amount' => $discountAmount
+                    ]);
+                }
+            }
+
+            // Add VAT
+            $vat = $amount * 0.2;
+            $totalAmount = $amount + $vat;
+            $amountInCents = (int)($totalAmount * 100);
+
+            // Create or get Stripe customer
             if (!$business->stripe_id) {
                 $customer = Customer::create([
                     'email' => $business->owner->email,
                     'name' => $business->name,
-                    'metadata' => [
-                        'business_id' => $business->id,
-                        'owner_id' => $business->owner_id
+                    'payment_method' => $request->payment_method_id,
+                    'invoice_settings' => [
+                        'default_payment_method' => $request->payment_method_id
                     ]
                 ]);
                 $business->stripe_id = $customer->id;
                 $business->save();
             }
 
-            // Retrieve the payment method
-            $paymentMethod = PaymentMethod::retrieve($request->payment_method);
-            
-            // Attach payment method to customer if not already attached
-            try {
-                $paymentMethod->attach(['customer' => $business->stripe_id]);
-            } catch (\Exception $e) {
-                // Ignore if already attached
-                if (!str_contains($e->getMessage(), 'already been attached')) {
-                    throw $e;
-                }
-            }
-
-            // Create Payment Intent
+            // Create payment intent
             $paymentIntent = PaymentIntent::create([
                 'amount' => $amountInCents,
                 'currency' => 'gbp',
                 'customer' => $business->stripe_id,
-                'payment_method' => $request->payment_method,
+                'payment_method' => $request->payment_method_id,
+                'off_session' => true,
                 'confirm' => true,
+                'description' => "Business purchase of {$licenses} license(s) for course: {$course->title}",
                 'metadata' => [
                     'business_id' => $business->id,
                     'course_id' => $course->id,
-                    'seats' => $seats,
+                    'licenses' => $licenses,
                     'type' => 'business_course_purchase'
-                ],
-                'description' => "Business purchase of {$seats} seat(s) for course: {$course->title}"
+                ]
             ]);
 
-            if ($paymentIntent->status !== 'succeeded') {
-                throw new \Exception('Payment was not successful. Status: ' . $paymentIntent->status);
+            if ($paymentIntent->status === 'succeeded') {
+                // Create purchase record
+                $purchase = BusinessCoursePurchase::create([
+                    'business_id' => $business->id,
+                    'course_id' => $course->id,
+                    'licenses_purchased' => $licenses,
+                    'price_per_license' => $course->price,
+                    'total_amount' => $totalAmount,
+                    'payment_id' => $paymentIntent->id,
+                    'purchased_at' => now(),
+                    'discount_code' => $request->discount_code ?? null
+                ]);
+
+                Log::info('Business course purchase completed successfully', [
+                    'business_id' => $business->id,
+                    'course_id' => $course->id,
+                    'purchase_id' => $purchase->id,
+                    'payment_intent_id' => $paymentIntent->id
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'redirect' => route('business.courses.purchased')
+                ]);
+            } else {
+                throw new \Exception("Payment failed with status: {$paymentIntent->status}");
             }
 
-            // Create purchase record
-            BusinessCoursePurchase::create([
-                'business_id' => $business->id,
-                'course_id' => $course->id,
-                'seats_purchased' => $seats,
-                'amount_paid' => $amount,
-                'payment_id' => $paymentIntent->id,
-                'purchased_at' => now()
+        } catch (CardException $e) {
+            Log::error('Stripe card error', [
+                'error' => $e->getMessage(),
+                'business_id' => $business->id ?? null,
+                'course_id' => $course->id
             ]);
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 400);
+        } catch (\Exception $e) {
+            Log::error('Business course purchase error', [
+                'error' => $e->getMessage(),
+                'business_id' => $business->id ?? null,
+                'course_id' => $course->id
+            ]);
+            return response()->json([
+                'error' => 'An error occurred while processing your payment. Please try again.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Allocate licenses to employees
+     */
+    public function allocate(Request $request, Course $course)
+    {
+        $business = $this->getBusiness();
+        
+        if (!$business) {
+            return response()->json([
+                'error' => 'Business profile not found.'
+            ], 400);
+        }
+
+        $request->validate([
+            'employee_ids' => ['required', 'array'],
+            'employee_ids.*' => ['exists:business_employees,id']
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $purchase = BusinessCoursePurchase::where('business_id', $business->id)
+                ->where('course_id', $course->id)
+                ->firstOrFail();
+
+            $currentAllocations = $purchase->allocations()->count();
+            $newAllocations = count($request->employee_ids);
+
+            if ($currentAllocations + $newAllocations > $purchase->licenses_purchased) {
+                throw new \Exception('Not enough licenses available.');
+            }
+
+            foreach ($request->employee_ids as $employeeId) {
+                BusinessCourseAllocation::create([
+                    'business_course_purchase_id' => $purchase->id,
+                    'business_employee_id' => $employeeId,
+                    'allocated_at' => now()
+                ]);
+            }
 
             DB::commit();
 
-            // Send confirmation email if enabled
-            if (config('mail.enabled')) {
-                try {
-                    Mail::to($business->owner->email)->send(new CoursePurchased($course, $business, $seats));
-                } catch (\Exception $e) {
-                    Log::error('Failed to send purchase confirmation email: ' . $e->getMessage());
-                }
-            }
-
-            return redirect()->route('business.courses.purchases')
-                ->with('success', 'Course purchased successfully. You can now allocate it to your employees.');
-
-        } catch (CardException $e) {
-            DB::rollBack();
-            Log::error('Stripe card error: ' . $e->getMessage());
-            return back()->with('error', 'Payment failed: ' . $e->getMessage())
-                ->withInput();
-            
-        } catch (InvalidRequestException $e) {
-            DB::rollBack();
-            Log::error('Stripe invalid request: ' . $e->getMessage(), [
-                'payment_method' => $request->payment_method,
-                'amount' => $amountInCents ?? null,
-                'error' => $e->getMessage()
+            return response()->json([
+                'success' => true,
+                'message' => 'Licenses allocated successfully.'
             ]);
-            return back()->with('error', 'Invalid payment request. Please check your card details and try again.')
-                ->withInput();
-            
-        } catch (AuthenticationException $e) {
-            DB::rollBack();
-            Log::error('Stripe authentication error: ' . $e->getMessage());
-            return back()->with('error', 'Payment system authentication error. Please contact support.')
-                ->withInput();
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Course purchase error: ' . $e->getMessage());
-            return back()->with('error', $e->getMessage())
-                ->withInput();
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Deallocate a license from an employee
+     */
+    public function deallocate(Course $course, BusinessEmployee $employee)
+    {
+        $business = $this->getBusiness();
+        
+        if (!$business) {
+            return response()->json([
+                'error' => 'Business profile not found.'
+            ], 400);
+        }
+
+        try {
+            $purchase = BusinessCoursePurchase::where('business_id', $business->id)
+                ->where('course_id', $course->id)
+                ->firstOrFail();
+
+            $allocation = BusinessCourseAllocation::where('business_course_purchase_id', $purchase->id)
+                ->where('business_employee_id', $employee->id)
+                ->firstOrFail();
+
+            $allocation->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'License deallocated successfully.'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 400);
         }
     }
 
@@ -262,7 +416,7 @@ class BusinessCourseManagementController extends Controller
     /**
      * Allocate course to employee(s)
      */
-    public function allocate(Request $request, BusinessCoursePurchase $purchase)
+    public function allocateOld(Request $request, BusinessCoursePurchase $purchase)
     {
         try {
             DB::beginTransaction();
@@ -287,18 +441,24 @@ class BusinessCourseManagementController extends Controller
             foreach ($request->employee_ids as $employeeId) {
                 $employee = User::findOrFail($employeeId);
                 
-                if (!$employee->courses->contains($course->id)) {
-                    $employee->courses()->attach($course->id, [
-                        'business_id' => $business->id,
-                        'course_purchase_id' => $purchase->id
+                // Check if employee already has this course allocated
+                if (!BusinessCourseAllocation::where('business_course_purchase_id', $purchase->id)
+                    ->where('user_id', $employeeId)
+                    ->exists()) {
+                    
+                    // Create business course allocation record
+                    BusinessCourseAllocation::create([
+                        'business_course_purchase_id' => $purchase->id,
+                        'user_id' => $employeeId,
+                        'allocated_at' => now()
                     ]);
 
-                    if (config('mail.enabled')) {
-                        try {
-                            Mail::to($employee->email)->send(new CourseAllocated($course, $employee, $business->name));
-                        } catch (\Exception $e) {
-                            Log::error('Failed to send course allocation email: ' . $e->getMessage());
-                        }
+                    // Attach course to user if not already attached
+                    if (!$employee->courses()->where('course_id', $course->id)->exists()) {
+                        $employee->courses()->attach($course->id, [
+                            'business_id' => $business->id,
+                            'course_purchase_id' => $purchase->id
+                        ]);
                     }
                 }
             }

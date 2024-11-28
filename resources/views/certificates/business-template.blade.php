@@ -1,94 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>Course Completion Certificate</title>
+    <meta charset="utf-8">
+    <title>Business Course Completion Certificate</title>
     <style>
         body {
-            font-family: 'DejaVu Sans', sans-serif;
-            color: #333;
-            line-height: 1.6;
-            text-align: center;
-            padding: 40px;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
             background: #fff;
         }
         .certificate {
-            max-width: 800px;
-            margin: 0 auto;
-            border: 2px solid #2c5282;
-            padding: 40px;
+            width: 1920px;
+            height: 1080px;
             position: relative;
-            background: linear-gradient(45deg, #f8fafc 25%, transparent 25%, transparent 75%, #f8fafc 75%, #f8fafc),
-                        linear-gradient(45deg, #f8fafc 25%, transparent 25%, transparent 75%, #f8fafc 75%, #f8fafc);
-            background-size: 60px 60px;
-            background-position: 0 0, 30px 30px;
-        }
-        .header {
-            margin-bottom: 40px;
-        }
-        .logo {
-            max-width: 150px;
-            margin-bottom: 20px;
-        }
-        .title {
-            font-size: 36px;
-            color: #2c5282;
-            margin-bottom: 20px;
-            font-weight: bold;
-        }
-        .subtitle {
-            font-size: 24px;
-            color: #4a5568;
-            margin-bottom: 40px;
-        }
-        .content {
-            margin-bottom: 40px;
-            font-size: 18px;
-        }
-        .name {
-            font-size: 28px;
-            color: #2d3748;
-            font-weight: bold;
-            margin: 20px 0;
-        }
-        .course-name {
-            font-size: 24px;
-            color: #2c5282;
-            font-weight: bold;
-            margin: 20px 0;
-        }
-        .business-name {
-            font-size: 20px;
-            color: #4a5568;
-            font-style: italic;
-            margin: 20px 0;
-        }
-        .date {
-            font-size: 18px;
-            color: #4a5568;
-            margin: 20px 0;
-        }
-        .certificate-number {
-            font-size: 14px;
-            color: #718096;
-            position: absolute;
-            bottom: 20px;
-            right: 40px;
-        }
-        .signature {
-            margin-top: 60px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-        }
-        .signature-line {
-            width: 200px;
-            margin: 0 auto;
-            border-top: 1px solid #000;
-            margin-top: 10px;
-        }
-        .signature-title {
-            font-size: 16px;
-            color: #4a5568;
+            padding: 50px;
+            box-sizing: border-box;
+            background: linear-gradient(45deg, #f6f6f6 25%, #ffffff 25%, #ffffff 50%, #f6f6f6 50%, #f6f6f6 75%, #ffffff 75%, #ffffff 100%);
+            background-size: 20px 20px;
         }
         .border-pattern {
             position: absolute;
@@ -96,18 +25,83 @@
             left: 0;
             right: 0;
             bottom: 0;
-            border: 2px solid #2c5282;
-            margin: 10px;
+            border: 2px solid #e2e8f0;
+            margin: 20px;
             pointer-events: none;
         }
-        .border-pattern::before {
-            content: '';
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-top: 40px;
+        }
+        .title {
+            font-size: 48px;
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .subtitle {
+            font-size: 24px;
+            color: #4a5568;
+            margin: 10px 0;
+        }
+        .content {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .name {
+            font-size: 36px;
+            color: #2d3748;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .business-name {
+            font-size: 28px;
+            color: #4a5568;
+            margin: 15px 0;
+            font-style: italic;
+        }
+        .course-name {
+            font-size: 30px;
+            color: #2d3748;
+            margin: 20px 0;
+            font-style: italic;
+        }
+        .date {
+            font-size: 24px;
+            color: #4a5568;
+            margin: 10px 0;
+        }
+        .signature {
+            text-align: center;
+            margin-top: 60px;
+        }
+        .signature-line {
+            width: 200px;
+            height: 2px;
+            background-color: #2d3748;
+            margin: 10px auto;
+        }
+        .signature-title {
+            font-size: 24px;
+            color: #2d3748;
+            margin-top: 10px;
+        }
+        .certificate-number {
             position: absolute;
-            top: 5px;
-            left: 5px;
-            right: 5px;
-            bottom: 5px;
-            border: 1px solid #4a5568;
+            bottom: 40px;
+            right: 40px;
+            font-size: 16px;
+            color: #718096;
+        }
+        .expiry-info {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            font-size: 16px;
+            color: #718096;
         }
     </style>
 </head>
@@ -136,6 +130,12 @@
         <div class="certificate-number">
             Certificate Number: {{ $certificate_number }}
         </div>
+
+        @if(isset($expiryDate))
+            <div class="expiry-info">
+                Valid until: {{ $expiryDate }}
+            </div>
+        @endif
     </div>
 </body>
 </html>

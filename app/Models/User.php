@@ -41,6 +41,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'last_login_at' => 'datetime',
     ];
 
     public function courses(): BelongsToMany
@@ -64,9 +65,12 @@ class User extends Authenticatable implements MustVerifyEmail
             ->withPivot(['completed_sections_count', 'last_accessed_at']);
     }
 
+    /**
+     * Check if the user is an admin
+     */
     public function isAdmin(): bool
     {
-        return strtolower($this->role) === self::ROLE_ADMIN;
+        return $this->role === 'admin';
     }
 
     public function isBusinessOwner(): bool
@@ -91,12 +95,17 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function ownedBusiness(): HasOne
     {
-        return $this->hasOne(Business::class, 'owner_id');
+        return $this->hasOne(Business::class, 'user_id');
     }
 
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
     }
 
     public function getBusiness()
