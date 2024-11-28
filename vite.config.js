@@ -11,20 +11,6 @@ export default defineConfig({
     build: {
         outDir: 'public/build',
         manifest: true,
-        rollupOptions: {
-            external: [
-                'jquery',
-                'alpinejs',
-                '@alpinejs/focus'
-            ]
-        },
-        // Add these options to handle the build environment better
-        minify: true,
-        sourcemap: false
-    },
-    server: {
-        hmr: {
-            host: 'localhost'
-        }
+        minify: 'terser'
     }
 });
