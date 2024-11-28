@@ -8,11 +8,20 @@ export default defineConfig({
             refresh: true,
         }),
     ],
+    build: {
+        outDir: 'public/build',
+        manifest: true,
+        rollupOptions: {
+            output: {
+                manualChunks: undefined
+            }
+        }
+    },
     server: {
-        host: 'localhost',
+        host: '0.0.0.0',
         hmr: {
-            host: 'localhost',
-        },
+            host: 'localhost'
+        }
     },
     resolve: {
         alias: {
