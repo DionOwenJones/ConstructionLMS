@@ -10,16 +10,6 @@ export default defineConfig({
     ],
     build: {
         outDir: 'public/build',
-        manifest: true,
-        rollupOptions: {
-            output: {
-                manualChunks: undefined
-            }
-        }
-    },
-    server: {
-        hmr: {
-            host: '${RAILWAY_STATIC_URL}'
-        }
+        manifest: true
     }
 });
