@@ -219,7 +219,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/courses/purchased', [BusinessCourseManagementController::class, 'purchased'])->name('courses.purchased');
         Route::get('/courses/purchases', [BusinessCourseManagementController::class, 'purchases'])->name('courses.purchases');
         Route::get('/courses/{course}/purchase', [BusinessCourseManagementController::class, 'purchase'])->name('courses.purchase');
-        Route::post('/courses/{course}/purchase/process', [BusinessCoursePurchaseController::class, 'process'])->name('courses.purchase.process');
+        Route::post('/courses/{course}/purchase/process', [BusinessCourseManagementController::class, 'processPurchase'])->name('courses.purchase.process');
         Route::get('/courses/{purchase}/allocate', [BusinessCourseManagementController::class, 'allocate'])->name('courses.allocate');
         Route::post('/courses/{purchase}/allocate', [BusinessCourseAllocationController::class, 'store'])->name('courses.allocate.store');
 
@@ -249,7 +249,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Course Purchase Routes
         Route::get('/courses/{course}/purchase', [BusinessCourseManagementController::class, 'purchase'])->name('courses.purchase');
-        Route::post('/courses/{course}/purchase', [BusinessCourseManagementController::class, 'processPurchase'])->name('courses.purchase.process');
+        Route::post('/courses/{course}/purchase/process', [BusinessCourseManagementController::class, 'processPurchase'])->name('courses.purchase.process');
         Route::get('/courses/{course}/purchase/success', [BusinessCourseManagementController::class, 'purchaseSuccess'])->name('courses.purchase.success');
         Route::get('/courses/{course}/purchase/cancel', [BusinessCourseManagementController::class, 'purchaseCancel'])->name('courses.purchase.cancel');
 
