@@ -11,21 +11,5 @@ export default defineConfig({
     build: {
         outDir: 'public/build',
         manifest: true,
-        rollupOptions: {
-            output: {
-                manualChunks: undefined
-            }
-        }
-    },
-    server: {
-        host: '0.0.0.0',
-        hmr: {
-            host: 'localhost'
-        }
-    },
-    resolve: {
-        alias: {
-            '@': '/resources'
-        },
     }
 });
