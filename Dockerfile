@@ -1,3 +1,9 @@
+FROM node:20 as node
+WORKDIR /app
+COPY . .
+RUN npm ci
+RUN npm run build
+
 FROM php:8.2-fpm
 
 # Install system dependencies
@@ -10,10 +16,6 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     zip \
     unzip
-
-# Install Node.js and npm
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs
 
 # Clear cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -29,11 +31,10 @@ WORKDIR /var/www
 
 # Copy project files
 COPY . .
+COPY --from=node /app/public/build public/build
 
 # Install dependencies
 RUN composer install --no-dev --optimize-autoloader
-RUN npm ci
-RUN npm run build
 
 # PHP configuration
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
