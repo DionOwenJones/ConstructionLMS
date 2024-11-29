@@ -11,3 +11,5 @@ restartPolicyType = "on_failure"
 [
 buildpacks
 ]
+php = "heroku/php"
+nodejs = "heroku/nodejs"
