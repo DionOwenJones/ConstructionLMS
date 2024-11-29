@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     zip \
     unzip \
-    nginx
+    nginx \
+    && rm -rf /var/lib/apt/lists/* # Clean up apt cache
 
 # Install PHP extensions
 RUN docker-php-ext-install pdo pdo_pgsql mbstring exif pcntl bcmath gd
@@ -27,8 +28,10 @@ RUN sed -i 's/listen = 127.0.0.1:9000/listen = \/var\/run\/php-fpm.sock/g' /usr/
 
 # Install Node.js and npm
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get update \
     && apt-get install -y nodejs \
-    && npm install -g npm@latest
+    && npm install -g npm@latest \
+    && rm -rf /var/lib/apt/lists/* # Clean up apt cache
 
 # Get latest Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -42,24 +45,27 @@ WORKDIR /var/www
 
 # Copy composer files first to leverage Docker cache
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-scripts
+RUN composer install --no-dev --optimize-autoloader --no-scripts --prefer-dist
 
 # Copy package.json files
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --production && \
+    npm cache clean --force # Clean npm cache
 
 # Copy the rest of the application code
 COPY . .
 
 # Set NODE_ENV and build assets
 ENV NODE_ENV=production
-RUN npm run build || true
+RUN npm run build || true && \
+    rm -rf node_modules # Remove node_modules after build
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www \
     && chmod -R 755 /var/www/storage \
     && chmod -R 755 /var/www/bootstrap/cache \
-    && chmod -R 755 /var/run
+    && chmod -R 755 /var/run \
+    && rm -rf /var/www/storage/*.key
 
 # Create environment file
 COPY .env.example .env
