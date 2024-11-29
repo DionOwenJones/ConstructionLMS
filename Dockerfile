@@ -7,20 +7,17 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
+    libpq-dev \
     zip \
-    unzip \
-    nodejs \
-    npm
-
-# Clear cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+    unzip
 
 # Install PHP extensions
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+RUN docker-php-ext-install pdo pdo_pgsql mbstring exif pcntl bcmath gd
 
 # Install Node.js and npm
-RUN curl -sL https://deb.nodesource.com/setup_20.x | bash -
-RUN apt-get install -y nodejs
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g npm@latest
 
 # Get latest Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -28,12 +25,18 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www
 
-# Copy existing application directory contents
-COPY . /var/www
+# Copy composer files first to leverage Docker cache
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader
-RUN npm install
+# Copy package.json files
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy the rest of the application code
+COPY . .
+
+# Build assets
 RUN npm run build
 
 # Copy Apache configuration
@@ -42,8 +45,12 @@ COPY apache.conf /etc/apache2/sites-available/000-default.conf
 # Enable Apache modules
 RUN a2enmod rewrite
 
-# Change ownership of our applications
-RUN chown -R www-data:www-data /var/www
+# Set permissions
+RUN chown -R www-data:www-data /var/www \
+    && chmod -R 755 /var/www/storage
 
 # Start Apache
-CMD ["apache2-foreground"]
+CMD php artisan config:cache && \
+    php artisan route:cache && \
+    php artisan view:cache && \
+    apache2-foreground
