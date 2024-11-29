@@ -1,4 +1,4 @@
-FROM php:8.2-apache
+FROM php:8.2-cli
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -44,11 +44,6 @@ COPY . .
 ENV NODE_ENV=production
 RUN npm run build || true
 
-# Configure Apache
-RUN a2enmod rewrite headers
-COPY apache.conf /etc/apache2/sites-available/000-default.conf
-RUN ln -sf /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-enabled/000-default.conf
-
 # Set permissions
 RUN chown -R www-data:www-data /var/www \
     && chmod -R 755 /var/www/storage \
@@ -58,12 +53,12 @@ RUN chown -R www-data:www-data /var/www \
 COPY .env.example .env
 RUN php artisan key:generate
 
-# Expose port 80
-EXPOSE 80
+# Expose port 8000
+EXPOSE 8000
 
-# Start Apache with Laravel setup
+# Start PHP server
 CMD php artisan config:cache && \
     php artisan route:cache && \
     php artisan view:cache && \
     php artisan storage:link && \
-    apache2-foreground
+    php artisan serve --port=$PORT --host=0.0.0.0
