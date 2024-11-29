@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+buildCommand = "composer install --no-dev --optimize-autoloader && npm install && npm run build"
+
+[deploy]
+startCommand = "php artisan serve --port=$PORT --host=0.0.0.0"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+
+[phases.setup]
+nixPkgs = ["php8.2", "nodejs-20_x", "npm"]
