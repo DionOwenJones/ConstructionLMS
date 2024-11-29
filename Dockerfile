@@ -51,10 +51,13 @@ RUN chown -R www-data:www-data /var/www \
     && chmod -R 755 /var/www/storage \
     && chmod -R 755 /var/www/bootstrap/cache
 
-# Generate Laravel cache
-RUN php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache
+# Create environment file
+RUN cp .env.example .env && \
+    php artisan key:generate
 
-# Start Apache
-CMD ["apache2-foreground"]
+# Start Apache with Laravel setup
+CMD php artisan config:cache && \
+    php artisan route:cache && \
+    php artisan view:cache && \
+    php artisan storage:link && \
+    apache2-foreground
