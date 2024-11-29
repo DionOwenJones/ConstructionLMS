@@ -1,11 +1,13 @@
-[
-build
-]
 builder = "heroku/buildpacks:20"
+buildCommand = "composer install --no-dev --optimize-autoloader && npm install && npm run build"
+startCommand = "php artisan serve --port=$PORT --host=0.0.0.0"
 
 [
 deploy
 ]
-startCommand = "php artisan serve --port=$PORT --host=0.0.0.0"
 healthcheckPath = "/"
 restartPolicyType = "on_failure"
+
+[
+buildpacks
+]
