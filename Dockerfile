@@ -24,7 +24,16 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" && \
 RUN sed -i 's/listen = 127.0.0.1:9000/listen = \/var\/run\/php-fpm.sock/g' /usr/local/etc/php-fpm.d/www.conf && \
     sed -i 's/;listen.owner = www-data/listen.owner = www-data/g' /usr/local/etc/php-fpm.d/www.conf && \
     sed -i 's/;listen.group = www-data/listen.group = www-data/g' /usr/local/etc/php-fpm.d/www.conf && \
-    sed -i 's/;listen.mode = 0660/listen.mode = 0660/g' /usr/local/etc/php-fpm.d/www.conf
+    sed -i 's/;listen.mode = 0660/listen.mode = 0660/g' /usr/local/etc/php-fpm.d/www.conf && \
+    sed -i 's/pm.max_children = 5/pm.max_children = 10/g' /usr/local/etc/php-fpm.d/www.conf && \
+    sed -i 's/pm.start_servers = 2/pm.start_servers = 4/g' /usr/local/etc/php-fpm.d/www.conf && \
+    sed -i 's/pm.min_spare_servers = 1/pm.min_spare_servers = 2/g' /usr/local/etc/php-fpm.d/www.conf && \
+    sed -i 's/pm.max_spare_servers = 3/pm.max_spare_servers = 6/g' /usr/local/etc/php-fpm.d/www.conf && \
+    echo "php_admin_flag[log_errors] = on" >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo "php_admin_value[error_log] = /dev/stderr" >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/www.conf
+
 
 # Install Node.js and npm
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
@@ -88,6 +97,7 @@ php artisan storage:link\n\
 \n\
 echo "Setting permissions..."\n\
 chown -R www-data:www-data /var/run/php-fpm\n\
+chmod 755 /var/run/php-fpm\n\
 \n\
 echo "Starting PHP-FPM..."\n\
 php-fpm -D\n\
@@ -96,6 +106,8 @@ echo "Checking PHP-FPM socket..."\n\
 timeout=30\n\
 while [ ! -S /var/run/php-fpm.sock ] && [ $timeout -gt 0 ]; do\n\
     echo "Waiting for PHP-FPM socket... ($timeout seconds remaining)"\n\
+    ls -la /var/run/php-fpm/\n\
+    ls -la /var/run/\n\
     sleep 1\n\
     timeout=$((timeout-1))\n\
 done\n\
@@ -104,6 +116,9 @@ if [ ! -S /var/run/php-fpm.sock ]; then\n\
     echo "Error: PHP-FPM socket not created after 30 seconds"\n\
     exit 1\n\
 fi\n\
+\n\
+echo "PHP-FPM socket created successfully:"\n\
+ls -la /var/run/php-fpm.sock\n\
 \n\
 echo "Starting Nginx..."\n\
 exec nginx -g "daemon off;"' > /start.sh && chmod +x /start.sh
