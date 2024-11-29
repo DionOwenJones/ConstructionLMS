@@ -11,6 +11,14 @@ export default defineConfig({
     build: {
         outDir: 'public/build',
         manifest: true,
+        rollupOptions: {
+            external: [/^\/resources\/.*/],
+        },
         minify: 'terser'
+    },
+    server: {
+        hmr: {
+            host: 'localhost'
+        }
     }
 });

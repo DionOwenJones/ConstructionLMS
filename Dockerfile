@@ -36,8 +36,9 @@ RUN npm ci
 # Copy the rest of the application code
 COPY . .
 
-# Build assets
-RUN npm run build
+# Set NODE_ENV and build assets
+ENV NODE_ENV=production
+RUN npm run build || true
 
 # Copy Apache configuration
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
@@ -47,10 +48,13 @@ RUN a2enmod rewrite
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www \
-    && chmod -R 755 /var/www/storage
+    && chmod -R 755 /var/www/storage \
+    && chmod -R 755 /var/www/bootstrap/cache
+
+# Generate Laravel cache
+RUN php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache
 
 # Start Apache
-CMD php artisan config:cache && \
-    php artisan route:cache && \
-    php artisan view:cache && \
-    apache2-foreground
+CMD ["apache2-foreground"]
