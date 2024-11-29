@@ -1,10 +1,11 @@
 [phases.setup]
-nixPkgs = ["php82", "nodejs_20", "npm-9_x"]
-aptPkgs = ["nginx", "libmysqlclient-dev"]
+providers = ["nodejs", "php"]
+nodejs = "20"
+php = "8.2"
 
 [phases.install]
 cmds = [
-    "composer install --no-dev",
+    "composer install --no-dev --optimize-autoloader",
     "npm ci"
 ]
 
