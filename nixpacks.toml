@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ['nodejs-20_x', 'php82', 'php82Packages.composer', 'nginx']
-
-[start]
-cmd = "php artisan serve --host=0.0.0.0 --port=$PORT"
-
-[build]
-cmd = "npm install && npm run build && composer install --no-dev --optimize-autoloader"
