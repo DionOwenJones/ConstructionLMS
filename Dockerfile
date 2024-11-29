@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y \
 # Install PHP extensions
 RUN docker-php-ext-install pdo pdo_pgsql mbstring exif pcntl bcmath gd
 
+# Configure PHP
+RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" && \
+    sed -i 's/memory_limit = 128M/memory_limit = 512M/g' "$PHP_INI_DIR/php.ini"
+
 # Install Node.js and npm
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
@@ -40,11 +44,10 @@ COPY . .
 ENV NODE_ENV=production
 RUN npm run build || true
 
-# Copy Apache configuration
+# Configure Apache
+RUN a2enmod rewrite headers
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
-
-# Enable Apache modules
-RUN a2enmod rewrite
+RUN ln -sf /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-enabled/000-default.conf
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www \
@@ -52,8 +55,11 @@ RUN chown -R www-data:www-data /var/www \
     && chmod -R 755 /var/www/bootstrap/cache
 
 # Create environment file
-RUN cp .env.example .env && \
-    php artisan key:generate
+COPY .env.example .env
+RUN php artisan key:generate
+
+# Expose port 80
+EXPOSE 80
 
 # Start Apache with Laravel setup
 CMD php artisan config:cache && \
