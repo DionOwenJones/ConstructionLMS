@@ -70,13 +70,37 @@ EXPOSE 80
 
 # Create start script
 RUN echo '#!/bin/sh\n\
+set -e\n\
+echo "Creating PHP-FPM run directory..."\n\
 mkdir -p /var/run/php-fpm\n\
+\n\
+echo "Running Laravel artisan commands..."\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
 php artisan view:cache\n\
 php artisan storage:link\n\
+\n\
+echo "Setting permissions..."\n\
+chown -R www-data:www-data /var/run/php-fpm\n\
+\n\
+echo "Starting PHP-FPM..."\n\
 php-fpm -D\n\
-nginx -g "daemon off;"' > /start.sh && chmod +x /start.sh
+\n\
+echo "Checking PHP-FPM socket..."\n\
+timeout=30\n\
+while [ ! -S /var/run/php-fpm.sock ] && [ $timeout -gt 0 ]; do\n\
+    echo "Waiting for PHP-FPM socket... ($timeout seconds remaining)"\n\
+    sleep 1\n\
+    timeout=$((timeout-1))\n\
+done\n\
+\n\
+if [ ! -S /var/run/php-fpm.sock ]; then\n\
+    echo "Error: PHP-FPM socket not created after 30 seconds"\n\
+    exit 1\n\
+fi\n\
+\n\
+echo "Starting Nginx..."\n\
+exec nginx -g "daemon off;"' > /start.sh && chmod +x /start.sh
 
 # Start servers
 CMD ["/start.sh"]
