@@ -1,14 +1,11 @@
-[build]
-builder = "nixpacks"
-buildCommand = "composer install --no-dev --optimize-autoloader && npm install && npm run build"
+[phases.setup]
+nixPkgs = ["php82", "nodejs-20_x", "npm"]
 
-[deploy]
-startCommand = "php artisan serve --port=$PORT --host=0.0.0.0"
-healthcheckPath = "/"
-restartPolicyType = "on_failure"
+[phases.install]
+cmds = ["composer install --no-dev", "npm install"]
 
-[[buildpacks]]
-url = "heroku/php"
+[phases.build]
+cmds = ["npm run build"]
 
-[[buildpacks]]
-url = "heroku/nodejs"
+[start]
+cmd = "php artisan serve --port=$PORT --host=0.0.0.0"
