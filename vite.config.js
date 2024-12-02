@@ -11,6 +11,8 @@ export default defineConfig({
     build: {
         outDir: 'public/build',
         manifest: true,
+        minify: 'terser',
+        cssMinify: true,
     },
     resolve: {
         alias: {
