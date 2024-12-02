@@ -2,12 +2,12 @@
     "private": true,
     "type": "module",
     "engines": {
-        "node": ">=20.0.0",
-        "npm": ">=9.0.0"
+        "node": "20.x",
+        "npm": "10.x"
     },
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build && vite build --ssr"
     },
     "dependencies": {
         "alpinejs": "^3.14.3",
