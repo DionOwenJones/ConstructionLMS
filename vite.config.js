@@ -12,13 +12,12 @@ export default defineConfig({
         outDir: 'public/build',
         manifest: true,
         rollupOptions: {
-            external: [/^\/resources\/.*/],
+            external: [
+                /^\/resources\/.*/,
+                'resources/css/app.css',
+                'resources/js/app.js'
+            ]
         },
         minify: 'terser'
-    },
-    server: {
-        hmr: {
-            host: 'localhost'
-        }
     }
 });
