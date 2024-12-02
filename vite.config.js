@@ -10,14 +10,6 @@ export default defineConfig({
     ],
     build: {
         outDir: 'public/build',
-        manifest: true,
-        rollupOptions: {
-            external: [
-                /^\/resources\/.*/,
-                'resources/css/app.css',
-                'resources/js/app.js'
-            ]
-        },
-        minify: 'terser'
+        manifest: true
     }
 });
