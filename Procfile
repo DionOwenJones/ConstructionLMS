@@ -1,1 +1,1 @@
-web: vendor/bin/heroku-php-apache2 public/
+php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan serve --port=$PORT --host=0.0.0.0
