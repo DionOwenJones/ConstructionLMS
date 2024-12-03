@@ -2,8 +2,11 @@ services:
   - type: web
     name: construction-lms
     env: php
+    runtime: php
     buildCommand: |
-      composer install --optimize-autoloader --no-dev
+      apt-get update && apt-get install -y php8.2-cli php8.2-mysql php8.2-pgsql php8.2-mbstring php8.2-xml php8.2-curl
+      curl -sS https://getcomposer.org/installer | php
+      php composer.phar install --optimize-autoloader --no-dev
       npm install
       npm run build
       php artisan migrate --force
